@@ -96,7 +96,7 @@ static bool is_surface_area_lossy(DisplayChannelClient *dcc, uint32_t surface_id
     spice_return_val_if_fail(display_channel_validate_surface(display, surface_id), FALSE);
 
     surface = &display->priv->surfaces[surface_id];
-    surface_lossy_region = &dcc->priv->surface_client_lossy_region[surface_id];
+    surface_lossy_region = &dcc->priv->surface_info[surface_id]->lossy_region;
 
     if (!area) {
         if (region_is_empty(surface_lossy_region)) {
@@ -579,7 +579,7 @@ static void surface_lossy_region_update(DisplayChannelClient *dcc,
         return;
     }
 
-    surface_lossy_region = &dcc->priv->surface_client_lossy_region[item->surface_id];
+    surface_lossy_region = &dcc->priv->surface_info[item->surface_id]->lossy_region;
     drawable = item->red_drawable;
 
     if (drawable->clip.type == SPICE_CLIP_TYPE_RECTS ) {
@@ -1793,13 +1793,14 @@ static void display_channel_marshall_migrate_data_surfaces(DisplayChannelClient 
     SpiceMarshaller *m2 = spice_marshaller_get_ptr_submarshaller(m, 0);
     uint32_t *num_surfaces_created;
     uint32_t i;
+    uint32_t num_surfaces = dcc->priv->allocated_surfaces;
 
     num_surfaces_created = (uint32_t *)spice_marshaller_reserve_space(m2, sizeof(uint32_t));
     *num_surfaces_created = 0;
-    for (i = 0; i < NUM_SURFACES; i++) {
+    for (i = 0; i < num_surfaces; i++) {
         SpiceRect lossy_rect;
 
-        if (!dcc->priv->surface_client_created[i]) {
+        if (!dcc->priv->surface_info[i]) {
             continue;
         }
         spice_marshaller_add_uint32(m2, i);
@@ -1808,7 +1809,7 @@ static void display_channel_marshall_migrate_data_surfaces(DisplayChannelClient 
         if (!lossy) {
             continue;
         }
-        region_extents(&dcc->priv->surface_client_lossy_region[i], &lossy_rect);
+        region_extents(&dcc->priv->surface_info[i]->lossy_region, &lossy_rect);
         spice_marshaller_add_int32(m2, lossy_rect.left);
         spice_marshaller_add_int32(m2, lossy_rect.top);
         spice_marshaller_add_int32(m2, lossy_rect.right);
@@ -1982,7 +1983,7 @@ static void red_marshall_image(RedChannelClient *rcc,
 
     int comp_succeeded = dcc_compress_image(dcc, &red_image, &bitmap, NULL, item->can_lossy, &comp_send_data);
 
-    surface_lossy_region = &dcc->priv->surface_client_lossy_region[item->surface_id];
+    surface_lossy_region = &dcc->priv->surface_info[item->surface_id]->lossy_region;
     if (comp_succeeded) {
         spice_marshall_Image(src_bitmap_out, &red_image,
                              &bitmap_palette_out, &lzplt_palette_out);
@@ -2250,7 +2251,7 @@ static void marshall_surface_create(RedChannelClient *rcc,
 {
     DisplayChannelClient *dcc = DISPLAY_CHANNEL_CLIENT(rcc);
 
-    region_init(&dcc->priv->surface_client_lossy_region[surface_create->surface_id]);
+    region_init(&dcc->priv->surface_info[surface_create->surface_id]->lossy_region);
     red_channel_client_init_send_data(rcc, SPICE_MSG_DISPLAY_SURFACE_CREATE);
 
     spice_marshall_msg_display_surface_create(base_marshaller, surface_create);
@@ -2262,7 +2263,7 @@ static void marshall_surface_destroy(RedChannelClient *rcc,
     DisplayChannelClient *dcc = DISPLAY_CHANNEL_CLIENT(rcc);
     SpiceMsgSurfaceDestroy surface_destroy;
 
-    region_destroy(&dcc->priv->surface_client_lossy_region[surface_id]);
+    region_destroy(&dcc->priv->surface_info[surface_id]->lossy_region);
     red_channel_client_init_send_data(rcc, SPICE_MSG_DISPLAY_SURFACE_DESTROY);
 
     surface_destroy.surface_id = surface_id;

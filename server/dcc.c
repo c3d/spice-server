@@ -285,6 +285,22 @@ bool dcc_clear_surface_drawables_from_pipe(DisplayChannelClient *dcc, int surfac
     return red_channel_client_wait_outgoing_item(rcc, DISPLAY_CLIENT_SHORT_TIMEOUT);
 }
 
+static bool dcc_resize_surfaces(DisplayChannelClient *dcc, size_t min_surface_id)
+{
+    if (min_surface_id >= dcc->priv->allocated_surfaces) {
+        /* Allocate additional space based on current count */
+        const size_t increment = 16;
+        size_t new_size = (min_surface_id + increment) * sizeof(RedClientSurfaceInfo *);
+        RedClientSurfaceInfo **resized = spice_realloc(dcc->priv->surface_info, new_size);
+        if (!resized) {
+            return false;
+        }
+        dcc->priv->surface_info = resized;
+        dcc->priv->allocated_surfaces = new_size;
+    }
+    return true;
+}
+
 void dcc_create_surface(DisplayChannelClient *dcc, int surface_id)
 {
     DisplayChannel *display;
@@ -302,7 +318,8 @@ void dcc_create_surface(DisplayChannelClient *dcc, int surface_id)
     /* don't send redundant create surface commands to client */
     if (!dcc ||
         common_graphics_channel_get_during_target_migrate(COMMON_GRAPHICS_CHANNEL(display)) ||
-        dcc->priv->surface_client_created[surface_id]) {
+        (surface_id < dcc->priv->allocated_surfaces &&
+         dcc->priv->surface_info[surface_id])) {
         return;
     }
     surface = &display->priv->surfaces[surface_id];
@@ -310,7 +327,15 @@ void dcc_create_surface(DisplayChannelClient *dcc, int surface_id)
                                          surface_id, surface->context.width,
                                          surface->context.height,
                                          surface->context.format, flags);
-    dcc->priv->surface_client_created[surface_id] = TRUE;
+    if (surface_id >= dcc->priv->allocated_surfaces) {
+        if (!dcc_resize_surfaces(dcc, surface_id)) {
+            return;
+        }
+    }
+    dcc->priv->surface_info[surface_id] = spice_new(RedClientSurfaceInfo, 1);
+    if (SPICE_UNLIKELY(dcc->priv->surface_info[surface_id] == NULL)) {
+        spice_error("Unable to allocate client surface info for surface %d", surface_id);
+    }
     red_channel_client_pipe_add(RED_CHANNEL_CLIENT(dcc), &create->pipe_item);
 }
 
@@ -412,7 +437,7 @@ static void add_drawable_surface_images(DisplayChannelClient *dcc, Drawable *dra
 
         surface_id = drawable->surface_deps[x];
         if (surface_id != -1) {
-            if (dcc->priv->surface_client_created[surface_id]) {
+            if (dcc->priv->surface_info[surface_id] != NULL) {
                 continue;
             }
             dcc_create_surface(dcc, surface_id);
@@ -421,7 +446,7 @@ static void add_drawable_surface_images(DisplayChannelClient *dcc, Drawable *dra
         }
     }
 
-    if (dcc->priv->surface_client_created[drawable->surface_id]) {
+    if (dcc->priv->surface_info[drawable->surface_id] != NULL) {
         return;
     }
 
@@ -747,11 +772,12 @@ void dcc_destroy_surface(DisplayChannelClient *dcc, uint32_t surface_id)
     channel = RED_CHANNEL(display);
 
     if (common_graphics_channel_get_during_target_migrate(COMMON_GRAPHICS_CHANNEL(display)) ||
-        !dcc->priv->surface_client_created[surface_id]) {
+        dcc->priv->surface_info[surface_id] == NULL) {
         return;
     }
 
-    dcc->priv->surface_client_created[surface_id] = FALSE;
+    free(dcc->priv->surface_info[surface_id]);
+    dcc->priv->surface_info[surface_id] = NULL;
     destroy = red_surface_destroy_item_new(channel, surface_id);
     red_channel_client_pipe_add(RED_CHANNEL_CLIENT(dcc), &destroy->pipe_item);
 }
@@ -1264,11 +1290,11 @@ static bool restore_surface(DisplayChannelClient *dcc, uint32_t surface_id)
 {
     /* we don't process commands till we receive the migration data, thus,
      * we should have not sent any surface to the client. */
-    if (dcc->priv->surface_client_created[surface_id]) {
+    if (dcc->priv->surface_info[surface_id] != NULL) {
         spice_warning("surface %u is already marked as client_created", surface_id);
         return FALSE;
     }
-    dcc->priv->surface_client_created[surface_id] = TRUE;
+    dcc->priv->surface_info[surface_id] = spice_new(RedClientSurfaceInfo, 1);
     return TRUE;
 }
 
@@ -1306,8 +1332,8 @@ static bool restore_surfaces_lossy(DisplayChannelClient *dcc,
         lossy_rect.top = mig_lossy_rect->top;
         lossy_rect.right = mig_lossy_rect->right;
         lossy_rect.bottom = mig_lossy_rect->bottom;
-        region_init(&dcc->priv->surface_client_lossy_region[surface_id]);
-        region_add(&dcc->priv->surface_client_lossy_region[surface_id], &lossy_rect);
+        region_init(&dcc->priv->surface_info[surface_id]->lossy_region);
+        region_add(&dcc->priv->surface_info[surface_id]->lossy_region, &lossy_rect);
     }
     return TRUE;
 }
