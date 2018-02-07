@@ -100,10 +100,19 @@ FIXME and TODO
 
 Comments that are prefixed with `FIXME` describe a bug that need to be fixed. Generally, it is not allowed to commit new code having `FIXME` comment. Committing  `FIXME` is allowed only for existing bugs. Comments that are prefixed with `TODO` describe further features, optimization or code improvements, and they are allowed to be committed along with the relevant code.
 
-ASSERT
-------
+Assertions
+----------
 
-Use it freely. ASSERT helps testing function arguments and function results validity.  ASSERT helps detecting bugs and improve code readability and stability.
+Use assertions liberally. Assertions help testing function arguments and function results validity. As a result, they make it easier to detect bugs. Also, by expressing the intent of the developer, they make the code easier to read.
+
+Several form of assertion exist. SPICE does not use the language `assert` much, but instead relies on the following variants:
+
+- `spice_assert`, defined in `common/log.h`, is never disabled at run-time and prints an error if the assertion fails.
+
+- `g_assert` and other variants defined in glib such as `g_assert_null`, can be disabled by setting `G_DISABLE_ASSERT` (which is never done in practice for SPICE code), and emits a message through the g_assertion_message function and its variants.
+
+The guidelines for selecting one or the other are not very clear from the existing code. The `spice_assert` variant may be preferred for SPICE-only code, as it makes it clearer that this assertion is coming from SPICE. The `g_assert` and variants may be preferred for assertions related to the use of glib.
+
 
 sizeof
 ------
