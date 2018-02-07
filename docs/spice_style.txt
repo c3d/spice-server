@@ -144,7 +144,7 @@ If multiple related constants are to be defined, consider the use of enumeration
 Short functions
 ---------------
 
-Try to split code to short functions, each having simple functionality, in order to improve code readability and re-usability. Prefix with inline short functions or functions that were splitted for readability reason.
+Try to split code to short functions, each having simple functionality, in order to improve code readability and re-usability. Prefix with `inline` functions that were splitted for readability reason or that are very short.
 
 Return on if
 ------------
