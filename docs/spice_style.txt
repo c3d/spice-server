@@ -137,7 +137,9 @@ If a switch case falls through (i.e. does not end with a `break`), annotate it w
 Defining Constant values
 ------------------------
 
-Use defines for constant values for improving readability and ease of changes. Alternatively, use global `const` variables.
+Use defines for constant values for improving readability and ease of changes.
+Alternatively, use global `const` variables for individual values.
+If multiple related constants are to be defined, consider the use of enumerations with initializers.
 
 Short functions
 ---------------
