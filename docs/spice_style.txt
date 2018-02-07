@@ -285,15 +285,7 @@ if (condition) {
 +
 In case of long condition statement, prefer having additional temporary variable over multiple line condition statement.
 +
-In case of new line in condition statement.
-+
-[source,c]
-----
-if (long_name && very_long_name && very_long ||
-                                               var_name) {
-----
-+
-or indent under the round bracket using spaces
+Indent long conditionals under the opening parenthesis using spaces
 +
 [source,c]
 ----
