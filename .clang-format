@@ -1,0 +1,27 @@
+Language:        Cpp
+# BasedOnStyle:  LLVM
+
+# The following is commented out until widely supported
+# IncludeBlocks: Regroup
+SortIncludes: true
+
+IncludeCategories:
+  - Regex:           'config.h'
+    Priority:        -1
+  - Regex:           '^"spice.*"'
+    Priority:        1
+  - Regex:           'glib'
+    Priority:        4
+  - Regex:           '^<.*>'
+    Priority:        3
+  - Regex:           '^".*"'
+    Priority:        2
+
+ColumnLimit:     100
+IndentCaseLabels: false
+IndentWidth:     4
+BreakBeforeBraces: Mozilla
+
+AlignConsecutiveAssignments: true
+AlignConsecutiveDeclarations: true
+BinPackParameters: false
