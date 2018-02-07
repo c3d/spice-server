@@ -408,34 +408,48 @@ Historically, some headers added underscores liberally, e.g. MY_MODULE_H_. This 
 Header inclusion
 ----------------
 
-Headers should be included in this order
+Headers should be included in this order:
+- config.h, which should only be included from C source files
+- [module].h, where [module].c is the corresponding implementation file
+- [module]-xyz.h, which are support headers for [module]
+- Other application headers, using #include "file.h"
+- System headers, using #include <file.h>
+- If necessary, C++ system headers, using #include <file>
+
+This order is designed to maximize chances of catching missing headers in headers (i.e. headers that are not self-contained).
+
+In summary, Headers should be included in this order
 
 [source,c]
 ----
-#include <system_headers.h>
-#include <no_spice_no_system_libraries.h>
+#include "config.h"
+#include "source.h"
+#include "source-support.h"
+#include "some-other-source.h"
+
 #include <spice_protocol.h>
 #include <spice_common.h>
-
-#include "spice_server.h"
+#include <no_spice_no_system_libraries.h>
+#include <system_headers.h>
+#include <vector>
+#include <cstdio>
 ----
 
-(note the empty line between no spice-server and spice-server headers)
+(note the empty line between application headers included with "" and system headers included with <>
 
-Also in source (no header) files you must include `config.h` at the beginning so should start (beside comments and copyright) with
+Headers should include only the headers required to process the header itself, and otherwise include as little as possible.
 
 [source,c]
 ----
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
+#ifndef SOURCE_H
+#define SOURCE_H
+#include "application-header-required-for-header.h"
 
-#include <system_headers.h>
-#include <no_spice_no_system_libraries.h>
-#include <spice_protocol.h>
-#include <spice_common.h>
+#include <system-header-required-for-header.h>
 
-#include "spice_server.h"
+...
+
+#endif /* SOURCE_H */
 ----
 
 C++
