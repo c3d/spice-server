@@ -35,7 +35,16 @@ Names
 
 Use lower case and separate words using dashes (e.g., file-name.c, header.h).
 
-Use standard file extension for C source and header files.
+The file extensions used in the SPICE project are:
+- .c for C source
+- .cpp for C++ sources
+- .h for headers that can be included from C code
+- .hpp for headers that are strictly reserved to C++
+- .m for Objective-C source files
+
+Note that .h headers may contain C++ code as long as the header can
+successfully be included from a C source file.
+
 
 Line width
 ~~~~~~~~~~
