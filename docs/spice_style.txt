@@ -489,3 +489,11 @@ using spice::streaming_agent::some_class;
 +
 [source,cpp]
 namespace ssa = spice::streaming_agent;
+
+Compilation
+-----------
+
+The source code should compile without warnings on all variants of GCC and clang available.
+A patch may be rejected if it introduces new warnings.
+Warnings that appear over time due to improvements in compilers should be fixed in dedicated patches. A patch should not mix warning fixes and other changes.
+Any patch may adjust whitespace (e.g. eliminate trailing whitespace). Whitespace adjustments do not require specific patches.
