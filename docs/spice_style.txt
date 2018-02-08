@@ -6,6 +6,27 @@ Licensed under a Creative Commons Attribution-Share Alike 3.0
 United States License (see http://creativecommons.org/licenses/by-sa/3.0/us/legalcode).
 
 
+External references
+-------------------
+
+In general, unless otherwise noted here (e.g. the use of tabs),
+
+- For C code, SPICE follows the Linux kernel coding conventions as documented here: https://www.kernel.org/doc/html/v4.10/process/coding-style.html.
+  Notable deviations from the Linux coding style include:
+  + The use of 4 spaces for indentation instead of tabs
+  + The use of typedefs for structs not considered as a mistake
+  + The use of CamelCase for struct and class names
+
+- For C++ code, SPICE follows the LLVM coding standard (https://llvm.org/docs/CodingStandards.html).
+  Notable deviations from the LLVM coding style include:
+  + The format of header comments
+  + The placement of braces after functions and classes (follows the Linux style)
+
+In addition, for C++, developers should be aware of the C++ Core Guidelines and consider them as best practice unless otherwise agreed on by the team
+https://github.com/isocpp/CppCoreGuidelines/blob/master/CppCoreGuidelines.md
+
+This style guide only indicates what we aim to achieve. It does not necessarily reflect the current state of the code.
+
 Source Files
 ------------
 
