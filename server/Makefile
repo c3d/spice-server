@@ -62,7 +62,7 @@ SOURCES=	$(filter %.c, $(GENERATED))		\
 		spice-bitmap-utils.c			\
 		spicevmc.c				\
 		stat-file.c				\
-		stream.c				\
+		video-stream.c				\
 		stream-channel.c			\
 		stream-device.c				\
 		sw-canvas.c				\
