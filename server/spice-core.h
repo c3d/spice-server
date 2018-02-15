@@ -22,11 +22,11 @@
 #error "Only spice.h can be included directly."
 #endif
 
-#include <stdint.h>
-#include <sys/socket.h>
+#include <spice/macros.h>
 #include <spice/qxl_dev.h>
 #include <spice/vd_agent.h>
-#include <spice/macros.h>
+#include <stdint.h>
+#include <sys/socket.h>
 
 #ifdef SPICE_SERVER_INTERNAL
 #undef SPICE_GNUC_DEPRECATED
@@ -36,15 +36,17 @@
 /* interface base type */
 
 typedef struct SpiceBaseInterface SpiceBaseInterface;
-typedef struct SpiceBaseInstance SpiceBaseInstance;
+typedef struct SpiceBaseInstance  SpiceBaseInstance;
 
-struct SpiceBaseInterface {
+struct SpiceBaseInterface
+{
     const char *type;
     const char *description;
-    uint32_t major_version;
-    uint32_t minor_version;
+    uint32_t    major_version;
+    uint32_t    minor_version;
 };
-struct SpiceBaseInstance {
+struct SpiceBaseInstance
+{
     const SpiceBaseInterface *sif;
 };
 
@@ -55,14 +57,14 @@ struct SpiceBaseInstance {
 #define SPICE_INTERFACE_CORE_MINOR 3
 typedef struct SpiceCoreInterface SpiceCoreInterface;
 
-#define SPICE_WATCH_EVENT_READ  (1 << 0)
+#define SPICE_WATCH_EVENT_READ (1 << 0)
 #define SPICE_WATCH_EVENT_WRITE (1 << 1)
 
-#define SPICE_CHANNEL_EVENT_CONNECTED     1
-#define SPICE_CHANNEL_EVENT_INITIALIZED   2
-#define SPICE_CHANNEL_EVENT_DISCONNECTED  3
+#define SPICE_CHANNEL_EVENT_CONNECTED 1
+#define SPICE_CHANNEL_EVENT_INITIALIZED 2
+#define SPICE_CHANNEL_EVENT_DISCONNECTED 3
 
-#define SPICE_CHANNEL_EVENT_FLAG_TLS      (1 << 0)
+#define SPICE_CHANNEL_EVENT_FLAG_TLS (1 << 0)
 #define SPICE_CHANNEL_EVENT_FLAG_ADDR_EXT (1 << 1)
 
 typedef struct SpiceWatch SpiceWatch;
@@ -71,7 +73,8 @@ typedef void (*SpiceWatchFunc)(int fd, int event, void *opaque);
 typedef struct SpiceTimer SpiceTimer;
 typedef void (*SpiceTimerFunc)(void *opaque);
 
-typedef struct SpiceChannelEventInfo {
+typedef struct SpiceChannelEventInfo
+{
     int connection_id;
     int type;
     int id;
@@ -84,10 +87,11 @@ typedef struct SpiceChannelEventInfo {
     /* should be used if (flags & SPICE_CHANNEL_EVENT_FLAG_ADDR_EXT) */
     struct sockaddr_storage laddr_ext;
     struct sockaddr_storage paddr_ext;
-    socklen_t llen_ext, plen_ext;
+    socklen_t               llen_ext, plen_ext;
 } SpiceChannelEventInfo;
 
-struct SpiceCoreInterface {
+struct SpiceCoreInterface
+{
     SpiceBaseInterface base;
 
     SpiceTimer *(*timer_add)(SpiceTimerFunc func, void *opaque);

@@ -23,16 +23,16 @@
 #error "Only spice.h can be included directly."
 #endif
 
-#include <stdio.h>
 #include "spice-core.h"
+#include <stdio.h>
 
 typedef struct SpiceReplay SpiceReplay;
 
 /* reads until encountering a cmd, processing any recorded messages (io) on the
  * way */
-QXLCommandExt*  spice_replay_next_cmd(SpiceReplay *replay, QXLWorker *worker);
-void            spice_replay_free_cmd(SpiceReplay *replay, QXLCommandExt *cmd);
-void            spice_replay_free(SpiceReplay *replay);
-SpiceReplay *   spice_replay_new(FILE *file, int nsurfaces);
+QXLCommandExt *spice_replay_next_cmd(SpiceReplay *replay, QXLWorker *worker);
+void spice_replay_free_cmd(SpiceReplay *replay, QXLCommandExt *cmd);
+void spice_replay_free(SpiceReplay *replay);
+SpiceReplay *spice_replay_new(FILE *file, int nsurfaces);
 
 #endif /* SPICE_REPLAY_H_ */

@@ -27,21 +27,22 @@
 
 #include "red-common.h"
 
-struct SpiceTimer {
-    GMainContext *context;
+struct SpiceTimer
+{
+    GMainContext * context;
     SpiceTimerFunc func;
-    void *opaque;
-    GSource *source;
+    void *         opaque;
+    GSource *      source;
 };
 
-static SpiceTimer* timer_add(const SpiceCoreInterfaceInternal *iface,
-                             SpiceTimerFunc func, void *opaque)
+static SpiceTimer *
+timer_add(const SpiceCoreInterfaceInternal *iface, SpiceTimerFunc func, void *opaque)
 {
     SpiceTimer *timer = g_new0(SpiceTimer, 1);
 
     timer->context = iface->main_context;
-    timer->func = func;
-    timer->opaque = opaque;
+    timer->func    = func;
+    timer->opaque  = opaque;
 
     return timer;
 }
@@ -56,8 +57,7 @@ static gboolean timer_func(gpointer user_data)
     return FALSE;
 }
 
-static void timer_cancel(const SpiceCoreInterfaceInternal *iface,
-                         SpiceTimer *timer)
+static void timer_cancel(const SpiceCoreInterfaceInternal *iface, SpiceTimer *timer)
 {
     if (timer->source) {
         g_source_destroy(timer->source);
@@ -66,8 +66,7 @@ static void timer_cancel(const SpiceCoreInterfaceInternal *iface,
     }
 }
 
-static void timer_start(const SpiceCoreInterfaceInternal *iface,
-                        SpiceTimer *timer, uint32_t ms)
+static void timer_start(const SpiceCoreInterfaceInternal *iface, SpiceTimer *timer, uint32_t ms)
 {
     timer_cancel(iface, timer);
 
@@ -79,19 +78,19 @@ static void timer_start(const SpiceCoreInterfaceInternal *iface,
     g_source_attach(timer->source, timer->context);
 }
 
-static void timer_remove(const SpiceCoreInterfaceInternal *iface,
-                         SpiceTimer *timer)
+static void timer_remove(const SpiceCoreInterfaceInternal *iface, SpiceTimer *timer)
 {
     timer_cancel(iface, timer);
     spice_assert(timer->source == NULL);
     g_free(timer);
 }
 
-struct SpiceWatch {
-    GMainContext *context;
-    void *opaque;
-    GSource *source;
-    GIOChannel *channel;
+struct SpiceWatch
+{
+    GMainContext * context;
+    void *         opaque;
+    GSource *      source;
+    GIOChannel *   channel;
     SpiceWatchFunc func;
 };
 
@@ -119,19 +118,18 @@ static int giocondition_to_spice_event(GIOCondition condition)
     return event;
 }
 
-static gboolean watch_func(GIOChannel *source, GIOCondition condition,
-                           gpointer data)
+static gboolean watch_func(GIOChannel *source, GIOCondition condition, gpointer data)
 {
     SpiceWatch *watch = data;
-    int fd = g_io_channel_unix_get_fd(source);
+    int         fd    = g_io_channel_unix_get_fd(source);
 
     watch->func(fd, giocondition_to_spice_event(condition), watch->opaque);
 
     return TRUE;
 }
 
-static void watch_update_mask(const SpiceCoreInterfaceInternal *iface,
-                              SpiceWatch *watch, int event_mask)
+static void
+watch_update_mask(const SpiceCoreInterfaceInternal *iface, SpiceWatch *watch, int event_mask)
 {
     if (watch->source) {
         g_source_destroy(watch->source);
@@ -148,26 +146,28 @@ static void watch_update_mask(const SpiceCoreInterfaceInternal *iface,
 }
 
 static SpiceWatch *watch_add(const SpiceCoreInterfaceInternal *iface,
-                             int fd, int event_mask, SpiceWatchFunc func, void *opaque)
+                             int                               fd,
+                             int                               event_mask,
+                             SpiceWatchFunc                    func,
+                             void *                            opaque)
 {
     SpiceWatch *watch;
 
     spice_return_val_if_fail(fd != -1, NULL);
     spice_return_val_if_fail(func != NULL, NULL);
 
-    watch = g_new0(SpiceWatch, 1);
+    watch          = g_new0(SpiceWatch, 1);
     watch->context = iface->main_context;
     watch->channel = g_io_channel_unix_new(fd);
-    watch->func = func;
-    watch->opaque = opaque;
+    watch->func    = func;
+    watch->opaque  = opaque;
 
     watch_update_mask(iface, watch, event_mask);
 
     return watch;
 }
 
-static void watch_remove(const SpiceCoreInterfaceInternal *iface,
-                         SpiceWatch *watch)
+static void watch_remove(const SpiceCoreInterfaceInternal *iface, SpiceWatch *watch)
 {
     watch_update_mask(iface, watch, 0);
     spice_assert(watch->source == NULL);
@@ -177,12 +177,12 @@ static void watch_remove(const SpiceCoreInterfaceInternal *iface,
 }
 
 const SpiceCoreInterfaceInternal event_loop_core = {
-    .timer_add = timer_add,
-    .timer_start = timer_start,
+    .timer_add    = timer_add,
+    .timer_start  = timer_start,
     .timer_cancel = timer_cancel,
     .timer_remove = timer_remove,
 
-    .watch_add = watch_add,
+    .watch_add         = watch_add,
     .watch_update_mask = watch_update_mask,
-    .watch_remove = watch_remove,
+    .watch_remove      = watch_remove,
 };

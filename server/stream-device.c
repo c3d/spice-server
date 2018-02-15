@@ -22,62 +22,65 @@
 #include <spice/stream-device.h>
 
 #include "char-device.h"
-#include "stream-channel.h"
 #include "reds.h"
+#include "stream-channel.h"
 
 #define TYPE_STREAM_DEVICE stream_device_get_type()
 
-#define STREAM_DEVICE(obj) \
-    (G_TYPE_CHECK_INSTANCE_CAST((obj), TYPE_STREAM_DEVICE, StreamDevice))
-#define STREAM_DEVICE_CLASS(klass) \
+#define STREAM_DEVICE(obj) (G_TYPE_CHECK_INSTANCE_CAST((obj), TYPE_STREAM_DEVICE, StreamDevice))
+#define STREAM_DEVICE_CLASS(klass)                                                                 \
     (G_TYPE_CHECK_CLASS_CAST((klass), TYPE_STREAM_DEVICE, StreamDeviceClass))
-#define STREAM_DEVICE_GET_CLASS(obj) \
+#define STREAM_DEVICE_GET_CLASS(obj)                                                               \
     (G_TYPE_INSTANCE_GET_CLASS((obj), TYPE_STREAM_DEVICE, StreamDeviceClass))
 
-typedef struct StreamDevice StreamDevice;
+typedef struct StreamDevice      StreamDevice;
 typedef struct StreamDeviceClass StreamDeviceClass;
 
-struct StreamDevice {
+struct StreamDevice
+{
     RedCharDevice parent;
 
     StreamDevHeader hdr;
-    uint8_t hdr_pos;
-    union {
-        StreamMsgFormat format;
+    uint8_t         hdr_pos;
+    union
+    {
+        StreamMsgFormat       format;
         StreamMsgCapabilities capabilities;
-        uint8_t buf[STREAM_MSG_CAPABILITIES_MAX_BYTES];
+        uint8_t               buf[STREAM_MSG_CAPABILITIES_MAX_BYTES];
     } msg;
-    uint32_t msg_pos;
-    bool has_error;
-    bool opened;
-    bool flow_stopped;
+    uint32_t       msg_pos;
+    bool           has_error;
+    bool           opened;
+    bool           flow_stopped;
     StreamChannel *stream_channel;
 };
 
-struct StreamDeviceClass {
+struct StreamDeviceClass
+{
     RedCharDeviceClass parent_class;
 };
 
-static GType stream_device_get_type(void) G_GNUC_CONST;
+static GType         stream_device_get_type(void) G_GNUC_CONST;
 static StreamDevice *stream_device_new(SpiceCharDeviceInstance *sin, RedsState *reds);
 
 G_DEFINE_TYPE(StreamDevice, stream_device, RED_TYPE_CHAR_DEVICE)
 
-typedef bool StreamMsgHandler(StreamDevice *dev, SpiceCharDeviceInstance *sin)
-    SPICE_GNUC_WARN_UNUSED_RESULT;
+typedef bool StreamMsgHandler(StreamDevice *           dev,
+                              SpiceCharDeviceInstance *sin) SPICE_GNUC_WARN_UNUSED_RESULT;
 
 static StreamMsgHandler handle_msg_format, handle_msg_data;
 
-static bool handle_msg_invalid(StreamDevice *dev, SpiceCharDeviceInstance *sin,
-                               const char *error_msg) SPICE_GNUC_WARN_UNUSED_RESULT;
+static bool handle_msg_invalid(StreamDevice *           dev,
+                               SpiceCharDeviceInstance *sin,
+                               const char *             error_msg) SPICE_GNUC_WARN_UNUSED_RESULT;
 
-static RedPipeItem *
-stream_device_read_msg_from_dev(RedCharDevice *self, SpiceCharDeviceInstance *sin)
+static RedPipeItem *stream_device_read_msg_from_dev(RedCharDevice *          self,
+                                                    SpiceCharDeviceInstance *sin)
 {
-    StreamDevice *dev = STREAM_DEVICE(self);
+    StreamDevice *            dev = STREAM_DEVICE(self);
     SpiceCharDeviceInterface *sif;
-    int n;
-    bool handled = false;
+    int                       n;
+    bool                      handled = false;
 
     if (dev->has_error || dev->flow_stopped || !dev->stream_channel) {
         return NULL;
@@ -87,7 +90,7 @@ stream_device_read_msg_from_dev(RedCharDevice *self, SpiceCharDeviceInstance *si
 
     /* read header */
     while (dev->hdr_pos < sizeof(dev->hdr)) {
-        n = sif->read(sin, (uint8_t *) &dev->hdr + dev->hdr_pos, sizeof(dev->hdr) - dev->hdr_pos);
+        n = sif->read(sin, (uint8_t *)&dev->hdr + dev->hdr_pos, sizeof(dev->hdr) - dev->hdr_pos);
         if (n <= 0) {
             return NULL;
         }
@@ -95,11 +98,11 @@ stream_device_read_msg_from_dev(RedCharDevice *self, SpiceCharDeviceInstance *si
         if (dev->hdr_pos >= sizeof(dev->hdr)) {
             dev->hdr.type = GUINT16_FROM_LE(dev->hdr.type);
             dev->hdr.size = GUINT32_FROM_LE(dev->hdr.size);
-            dev->msg_pos = 0;
+            dev->msg_pos  = 0;
         }
     }
 
-    switch ((StreamMsgType) dev->hdr.type) {
+    switch ((StreamMsgType)dev->hdr.type) {
     case STREAM_TYPE_FORMAT:
         if (dev->hdr.size != sizeof(StreamMsgFormat)) {
             handled = handle_msg_invalid(dev, sin, "Wrong size for StreamMsgFormat");
@@ -111,7 +114,7 @@ stream_device_read_msg_from_dev(RedCharDevice *self, SpiceCharDeviceInstance *si
         handled = handle_msg_data(dev, sin);
         break;
     case STREAM_TYPE_CAPABILITIES:
-        /* FIXME */
+    /* FIXME */
     default:
         handled = handle_msg_invalid(dev, sin, "Invalid message type");
         break;
@@ -139,23 +142,23 @@ handle_msg_invalid(StreamDevice *dev, SpiceCharDeviceInstance *sin, const char *
         error_msg = default_error_msg;
     }
 
-    int msg_size = sizeof(StreamMsgNotifyError) + strlen(error_msg) + 1;
+    int msg_size   = sizeof(StreamMsgNotifyError) + strlen(error_msg) + 1;
     int total_size = sizeof(StreamDevHeader) + msg_size;
 
-    RedCharDevice *char_dev = RED_CHAR_DEVICE(dev);
+    RedCharDevice *           char_dev = RED_CHAR_DEVICE(dev);
     RedCharDeviceWriteBuffer *buf =
         red_char_device_write_buffer_get_server_no_token(char_dev, total_size);
     buf->buf_used = total_size;
 
     StreamDevHeader *const hdr = (StreamDevHeader *)buf->buf;
-    hdr->protocol_version = STREAM_DEVICE_PROTOCOL;
-    hdr->padding = 0;
-    hdr->type = GUINT16_TO_LE(STREAM_TYPE_NOTIFY_ERROR);
-    hdr->size = GUINT32_TO_LE(msg_size);
+    hdr->protocol_version      = STREAM_DEVICE_PROTOCOL;
+    hdr->padding               = 0;
+    hdr->type                  = GUINT16_TO_LE(STREAM_TYPE_NOTIFY_ERROR);
+    hdr->size                  = GUINT32_TO_LE(msg_size);
 
-    StreamMsgNotifyError *const error = (StreamMsgNotifyError *)(hdr+1);
-    error->error_code = GUINT32_TO_LE(0);
-    strcpy((char *) error->msg, error_msg);
+    StreamMsgNotifyError *const error = (StreamMsgNotifyError *)(hdr + 1);
+    error->error_code                 = GUINT32_TO_LE(0);
+    strcpy((char *)error->msg, error_msg);
 
     red_char_device_write_buffer_add(char_dev, buf);
 
@@ -163,8 +166,7 @@ handle_msg_invalid(StreamDevice *dev, SpiceCharDeviceInstance *sin, const char *
     return false;
 }
 
-static bool
-handle_msg_format(StreamDevice *dev, SpiceCharDeviceInstance *sin)
+static bool handle_msg_format(StreamDevice *dev, SpiceCharDeviceInstance *sin)
 {
     SpiceCharDeviceInterface *sif = spice_char_device_get_interface(sin);
 
@@ -184,17 +186,16 @@ handle_msg_format(StreamDevice *dev, SpiceCharDeviceInstance *sin)
         return false;
     }
 
-    dev->msg.format.width = GUINT32_FROM_LE(dev->msg.format.width);
+    dev->msg.format.width  = GUINT32_FROM_LE(dev->msg.format.width);
     dev->msg.format.height = GUINT32_FROM_LE(dev->msg.format.height);
     stream_channel_change_format(dev->stream_channel, &dev->msg.format);
     return true;
 }
 
-static bool
-handle_msg_data(StreamDevice *dev, SpiceCharDeviceInstance *sin)
+static bool handle_msg_data(StreamDevice *dev, SpiceCharDeviceInstance *sin)
 {
     SpiceCharDeviceInterface *sif = spice_char_device_get_interface(sin);
-    int n;
+    int                       n;
 
     if (ENABLE_EXTRA_CHECKS) {
         spice_assert(dev->hdr_pos >= sizeof(StreamDevHeader));
@@ -228,45 +229,42 @@ stream_device_send_tokens_to_client(RedCharDevice *self, RedClient *client, uint
     spice_printerr("Not implemented!");
 }
 
-static void
-stream_device_remove_client(RedCharDevice *self, RedClient *client)
-{
-}
+static void stream_device_remove_client(RedCharDevice *self, RedClient *client) {}
 
-static void
-stream_device_stream_start(void *opaque, StreamMsgStartStop *start,
-                           StreamChannel *stream_channel G_GNUC_UNUSED)
+static void stream_device_stream_start(void *              opaque,
+                                       StreamMsgStartStop *start,
+                                       StreamChannel *stream_channel G_GNUC_UNUSED)
 {
-    StreamDevice *dev = (StreamDevice *) opaque;
+    StreamDevice *dev = (StreamDevice *)opaque;
 
     if (!dev->opened) {
         return;
     }
 
-    int msg_size = sizeof(*start) + sizeof(start->codecs[0]) * start->num_codecs;
+    int msg_size   = sizeof(*start) + sizeof(start->codecs[0]) * start->num_codecs;
     int total_size = sizeof(StreamDevHeader) + msg_size;
 
-    RedCharDevice *char_dev = RED_CHAR_DEVICE(dev);
+    RedCharDevice *           char_dev = RED_CHAR_DEVICE(dev);
     RedCharDeviceWriteBuffer *buf =
         red_char_device_write_buffer_get_server_no_token(char_dev, total_size);
     buf->buf_used = total_size;
 
-    StreamDevHeader *hdr = (StreamDevHeader *)buf->buf;
+    StreamDevHeader *hdr  = (StreamDevHeader *)buf->buf;
     hdr->protocol_version = STREAM_DEVICE_PROTOCOL;
-    hdr->padding = 0;
-    hdr->type = GUINT16_TO_LE(STREAM_TYPE_START_STOP);
-    hdr->size = GUINT32_TO_LE(msg_size);
+    hdr->padding          = 0;
+    hdr->type             = GUINT16_TO_LE(STREAM_TYPE_START_STOP);
+    hdr->size             = GUINT32_TO_LE(msg_size);
 
     memcpy(&hdr[1], start, msg_size);
 
     red_char_device_write_buffer_add(char_dev, buf);
 }
 
-static void
-stream_device_stream_queue_stat(void *opaque, const StreamQueueStat *stats G_GNUC_UNUSED,
-                                StreamChannel *stream_channel G_GNUC_UNUSED)
+static void stream_device_stream_queue_stat(void *                 opaque,
+                                            const StreamQueueStat *stats G_GNUC_UNUSED,
+                                            StreamChannel *stream_channel G_GNUC_UNUSED)
 {
-    StreamDevice *dev = (StreamDevice *) opaque;
+    StreamDevice *dev = (StreamDevice *)opaque;
 
     if (!dev->opened) {
         return;
@@ -289,8 +287,7 @@ stream_device_stream_queue_stat(void *opaque, const StreamQueueStat *stats G_GNU
     }
 }
 
-RedCharDevice *
-stream_device_connect(RedsState *reds, SpiceCharDeviceInstance *sin)
+RedCharDevice *stream_device_connect(RedsState *reds, SpiceCharDeviceInstance *sin)
 {
     SpiceCharDeviceInterface *sif;
 
@@ -304,8 +301,7 @@ stream_device_connect(RedsState *reds, SpiceCharDeviceInstance *sin)
     return RED_CHAR_DEVICE(dev);
 }
 
-static void
-stream_device_dispose(GObject *object)
+static void stream_device_dispose(GObject *object)
 {
     StreamDevice *dev = STREAM_DEVICE(object);
 
@@ -316,14 +312,13 @@ stream_device_dispose(GObject *object)
     }
 }
 
-static void
-allocate_channels(StreamDevice *dev)
+static void allocate_channels(StreamDevice *dev)
 {
     if (dev->stream_channel) {
         return;
     }
 
-    SpiceServer* reds = red_char_device_get_server(RED_CHAR_DEVICE(dev));
+    SpiceServer *reds = red_char_device_get_server(RED_CHAR_DEVICE(dev));
 
     int id = reds_get_free_channel_id(reds, SPICE_CHANNEL_DISPLAY);
     g_return_if_fail(id >= 0);
@@ -336,16 +331,14 @@ allocate_channels(StreamDevice *dev)
     stream_channel_register_queue_stat_cb(stream_channel, stream_device_stream_queue_stat, dev);
 }
 
-static void
-reset_channels(StreamDevice *dev)
+static void reset_channels(StreamDevice *dev)
 {
     if (dev->stream_channel) {
         stream_channel_reset(dev->stream_channel);
     }
 }
 
-static void
-stream_device_port_event(RedCharDevice *char_dev, uint8_t event)
+static void stream_device_port_event(RedCharDevice *char_dev, uint8_t event)
 {
     if (event != SPICE_PORT_EVENT_OPENED && event != SPICE_PORT_EVENT_CLOSED) {
         return;
@@ -358,41 +351,32 @@ stream_device_port_event(RedCharDevice *char_dev, uint8_t event)
     if (dev->opened) {
         allocate_channels(dev);
     }
-    dev->hdr_pos = 0;
-    dev->msg_pos = 0;
-    dev->has_error = false;
+    dev->hdr_pos      = 0;
+    dev->msg_pos      = 0;
+    dev->has_error    = false;
     dev->flow_stopped = false;
     red_char_device_reset(char_dev);
     reset_channels(dev);
 }
 
-static void
-stream_device_class_init(StreamDeviceClass *klass)
+static void stream_device_class_init(StreamDeviceClass *klass)
 {
-    GObjectClass *object_class = G_OBJECT_CLASS(klass);
+    GObjectClass *      object_class   = G_OBJECT_CLASS(klass);
     RedCharDeviceClass *char_dev_class = RED_CHAR_DEVICE_CLASS(klass);
 
     object_class->dispose = stream_device_dispose;
 
     char_dev_class->read_one_msg_from_device = stream_device_read_msg_from_dev;
-    char_dev_class->send_msg_to_client = stream_device_send_msg_to_client;
-    char_dev_class->send_tokens_to_client = stream_device_send_tokens_to_client;
-    char_dev_class->remove_client = stream_device_remove_client;
-    char_dev_class->port_event = stream_device_port_event;
+    char_dev_class->send_msg_to_client       = stream_device_send_msg_to_client;
+    char_dev_class->send_tokens_to_client    = stream_device_send_tokens_to_client;
+    char_dev_class->remove_client            = stream_device_remove_client;
+    char_dev_class->port_event               = stream_device_port_event;
 }
 
-static void
-stream_device_init(StreamDevice *self)
-{
-}
+static void stream_device_init(StreamDevice *self) {}
 
-static StreamDevice *
-stream_device_new(SpiceCharDeviceInstance *sin, RedsState *reds)
+static StreamDevice *stream_device_new(SpiceCharDeviceInstance *sin, RedsState *reds)
 {
-    return g_object_new(TYPE_STREAM_DEVICE,
-                        "sin", sin,
-                        "spice-server", reds,
-                        "client-tokens-interval", 0ULL,
-                        "self-tokens", ~0ULL,
-                        NULL);
+    return g_object_new(TYPE_STREAM_DEVICE, "sin", sin, "spice-server", reds,
+                        "client-tokens-interval", 0ULL, "self-tokens", ~0ULL, NULL);
 }

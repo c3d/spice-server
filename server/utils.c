@@ -18,23 +18,23 @@
 #include <config.h>
 #endif
 
-#include <glib.h>
-#include <spice/enums.h>
 #include <common/macros.h>
+#include <spice/enums.h>
+#include <glib.h>
 
 #include "utils.h"
 
-int rgb32_data_has_alpha(int width, int height, size_t stride,
-                         const uint8_t *data, int *all_set_out)
+int rgb32_data_has_alpha(
+    int width, int height, size_t stride, const uint8_t *data, int *all_set_out)
 {
     const uint8_t *line, *end;
-    uint8_t alpha;
-    int has_alpha;
+    uint8_t        alpha;
+    int            has_alpha;
 
     has_alpha = FALSE;
     while (height-- > 0) {
         line = data;
-        end = line + sizeof(uint32_t) * width;
+        end  = line + sizeof(uint32_t) * width;
         data += stride;
         while (line != end) {
             alpha = line[3];
@@ -55,17 +55,12 @@ int rgb32_data_has_alpha(int width, int height, size_t stride,
 
 /* These names are used to parse command line options, don't change them */
 static const char *const channel_names[] = {
-    [ SPICE_CHANNEL_MAIN     ] = "main",
-    [ SPICE_CHANNEL_DISPLAY  ] = "display",
-    [ SPICE_CHANNEL_INPUTS   ] = "inputs",
-    [ SPICE_CHANNEL_CURSOR   ] = "cursor",
-    [ SPICE_CHANNEL_PLAYBACK ] = "playback",
-    [ SPICE_CHANNEL_RECORD   ] = "record",
-    [ SPICE_CHANNEL_TUNNEL   ] = "tunnel",
-    [ SPICE_CHANNEL_SMARTCARD] = "smartcard",
-    [ SPICE_CHANNEL_USBREDIR ] = "usbredir",
-    [ SPICE_CHANNEL_PORT     ] = "port",
-    [ SPICE_CHANNEL_WEBDAV   ] = "webdav",
+        [SPICE_CHANNEL_MAIN] = "main",         [SPICE_CHANNEL_DISPLAY] = "display",
+        [SPICE_CHANNEL_INPUTS] = "inputs",     [SPICE_CHANNEL_CURSOR] = "cursor",
+        [SPICE_CHANNEL_PLAYBACK] = "playback", [SPICE_CHANNEL_RECORD] = "record",
+        [SPICE_CHANNEL_TUNNEL] = "tunnel",     [SPICE_CHANNEL_SMARTCARD] = "smartcard",
+        [SPICE_CHANNEL_USBREDIR] = "usbredir", [SPICE_CHANNEL_PORT] = "port",
+        [SPICE_CHANNEL_WEBDAV] = "webdav",
 };
 
 /* Make sure the last channel in the protocol has a name.

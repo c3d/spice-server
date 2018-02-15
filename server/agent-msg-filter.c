@@ -21,33 +21,34 @@
 #include <config.h>
 #endif
 
-#include <string.h>
-#include <spice/vd_agent.h>
-#include "red-common.h"
 #include "agent-msg-filter.h"
+#include "red-common.h"
+#include <spice/vd_agent.h>
+#include <string.h>
 
 void agent_msg_filter_config(AgentMsgFilter *filter,
-                             gboolean copy_paste, gboolean file_xfer,
-                             gboolean use_client_monitors_config)
+                             gboolean        copy_paste,
+                             gboolean        file_xfer,
+                             gboolean        use_client_monitors_config)
 {
-    filter->copy_paste_enabled = copy_paste;
-    filter->file_xfer_enabled = file_xfer;
+    filter->copy_paste_enabled         = copy_paste;
+    filter->file_xfer_enabled          = file_xfer;
     filter->use_client_monitors_config = use_client_monitors_config;
 }
 
 void agent_msg_filter_init(AgentMsgFilter *filter,
-                           gboolean copy_paste, gboolean file_xfer,
-                           gboolean use_client_monitors_config,
-                           gboolean discard_all)
+                           gboolean        copy_paste,
+                           gboolean        file_xfer,
+                           gboolean        use_client_monitors_config,
+                           gboolean        discard_all)
 {
     memset(filter, 0, sizeof(*filter));
-    agent_msg_filter_config(filter, copy_paste, file_xfer,
-                            use_client_monitors_config);
+    agent_msg_filter_config(filter, copy_paste, file_xfer, use_client_monitors_config);
     filter->discard_all = discard_all;
 }
 
-AgentMsgFilterResult agent_msg_filter_process_data(AgentMsgFilter *filter,
-                                                   const uint8_t *data, uint32_t len)
+AgentMsgFilterResult
+agent_msg_filter_process_data(AgentMsgFilter *filter, const uint8_t *data, uint32_t len)
 {
     struct VDAgentMessage msg_header;
 
@@ -58,7 +59,7 @@ AgentMsgFilterResult agent_msg_filter_process_data(AgentMsgFilter *filter,
 
     /* Are we expecting more data from a previous message? */
     if (filter->msg_data_to_read) {
-data_to_read:
+    data_to_read:
         if (len > filter->msg_data_to_read) {
             spice_printerr("invalid agent message: data exceeds size from header");
             return AGENT_MSG_FILTER_PROTO_ERROR;

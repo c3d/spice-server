@@ -30,25 +30,29 @@ G_DEFINE_ABSTRACT_TYPE(CommonGraphicsChannel, common_graphics_channel, RED_TYPE_
 
 G_DEFINE_TYPE(CommonGraphicsChannelClient, common_graphics_channel_client, RED_TYPE_CHANNEL_CLIENT)
 
-#define GRAPHICS_CHANNEL_PRIVATE(o) \
+#define GRAPHICS_CHANNEL_PRIVATE(o)                                                                \
     (G_TYPE_INSTANCE_GET_PRIVATE((o), TYPE_COMMON_GRAPHICS_CHANNEL, CommonGraphicsChannelPrivate))
-#define GRAPHICS_CHANNEL_CLIENT_PRIVATE(o) \
-    (G_TYPE_INSTANCE_GET_PRIVATE((o), TYPE_COMMON_GRAPHICS_CHANNEL_CLIENT, \
-    CommonGraphicsChannelClientPrivate))
+#define GRAPHICS_CHANNEL_CLIENT_PRIVATE(o)                                                         \
+    (G_TYPE_INSTANCE_GET_PRIVATE((o), TYPE_COMMON_GRAPHICS_CHANNEL_CLIENT,                         \
+                                 CommonGraphicsChannelClientPrivate))
 
 struct CommonGraphicsChannelPrivate
 {
-    int during_target_migrate; /* TRUE when the client that is associated with the channel
-                                  is during migration. Turned off when the vm is started.
-                                  The flag is used to avoid sending messages that are artifacts
-                                  of the transition from stopped vm to loaded vm (e.g., recreation
+    int during_target_migrate; /* TRUE when the client that is associated with the
+                                  channel
+                                  is during migration. Turned off when the vm is
+                                  started.
+                                  The flag is used to avoid sending messages that
+                                  are artifacts
+                                  of the transition from stopped vm to loaded vm
+                                  (e.g., recreation
                                   of the primary surface) */
 };
 
-struct CommonGraphicsChannelClientPrivate {
+struct CommonGraphicsChannelClientPrivate
+{
     uint8_t recv_buf[CHANNEL_RECEIVE_BUF_SIZE];
 };
-
 
 static uint8_t *common_alloc_recv_buf(RedChannelClient *rcc, uint16_t type, uint32_t size)
 {
@@ -66,8 +70,8 @@ static uint8_t *common_alloc_recv_buf(RedChannelClient *rcc, uint16_t type, uint
     return common->priv->recv_buf;
 }
 
-static void common_release_recv_buf(RedChannelClient *rcc, uint16_t type, uint32_t size,
-                                    uint8_t* msg)
+static void
+common_release_recv_buf(RedChannelClient *rcc, uint16_t type, uint32_t size, uint8_t *msg)
 {
     if (type == SPICE_MSGC_MIGRATE_DATA) {
         g_free(msg);
@@ -76,10 +80,10 @@ static void common_release_recv_buf(RedChannelClient *rcc, uint16_t type, uint32
 
 bool common_channel_client_config_socket(RedChannelClient *rcc)
 {
-    RedClient *client = red_channel_client_get_client(rcc);
-    MainChannelClient *mcc = red_client_get_main(client);
-    RedStream *stream = red_channel_client_get_stream(rcc);
-    gboolean is_low_bandwidth;
+    RedClient *        client = red_channel_client_get_client(rcc);
+    MainChannelClient *mcc    = red_client_get_main(client);
+    RedStream *        stream = red_channel_client_get_stream(rcc);
+    gboolean           is_low_bandwidth;
 
     // TODO - this should be dynamic, not one time at channel creation
     is_low_bandwidth = main_channel_client_is_low_bandwidth(mcc);
@@ -92,21 +96,17 @@ bool common_channel_client_config_socket(RedChannelClient *rcc)
     red_stream_set_no_delay(stream, !is_low_bandwidth);
 
     // TODO: move wide/narrow ack setting to red_channel.
-    red_channel_client_ack_set_client_window(rcc,
-        is_low_bandwidth ?
-        WIDE_CLIENT_ACK_WINDOW : NARROW_CLIENT_ACK_WINDOW);
+    red_channel_client_ack_set_client_window(rcc, is_low_bandwidth ? WIDE_CLIENT_ACK_WINDOW
+                                                                   : NARROW_CLIENT_ACK_WINDOW);
     return TRUE;
 }
 
-
-static void
-common_graphics_channel_class_init(CommonGraphicsChannelClass *klass)
+static void common_graphics_channel_class_init(CommonGraphicsChannelClass *klass)
 {
     g_type_class_add_private(klass, sizeof(CommonGraphicsChannelPrivate));
 }
 
-static void
-common_graphics_channel_init(CommonGraphicsChannel *self)
+static void common_graphics_channel_init(CommonGraphicsChannel *self)
 {
     self->priv = GRAPHICS_CHANNEL_PRIVATE(self);
 }
@@ -121,20 +121,18 @@ gboolean common_graphics_channel_get_during_target_migrate(CommonGraphicsChannel
     return self->priv->during_target_migrate;
 }
 
-static void
-common_graphics_channel_client_init(CommonGraphicsChannelClient *self)
+static void common_graphics_channel_client_init(CommonGraphicsChannelClient *self)
 {
     self->priv = GRAPHICS_CHANNEL_CLIENT_PRIVATE(self);
 }
 
-static void
-common_graphics_channel_client_class_init(CommonGraphicsChannelClientClass *klass)
+static void common_graphics_channel_client_class_init(CommonGraphicsChannelClientClass *klass)
 {
     RedChannelClientClass *client_class = RED_CHANNEL_CLIENT_CLASS(klass);
 
     g_type_class_add_private(klass, sizeof(CommonGraphicsChannelClientPrivate));
 
-    client_class->config_socket = common_channel_client_config_socket;
-    client_class->alloc_recv_buf = common_alloc_recv_buf;
+    client_class->config_socket    = common_channel_client_config_socket;
+    client_class->alloc_recv_buf   = common_alloc_recv_buf;
     client_class->release_recv_buf = common_release_recv_buf;
 }

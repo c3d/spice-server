@@ -34,25 +34,26 @@
 #define GRADUAL_HIGH_RGB16_TH 0
 
 // setting a more permissive threshold for stream identification in order
-// not to miss streams that were artificially scaled on the guest (e.g., full screen view
+// not to miss streams that were artificially scaled on the guest (e.g., full
+// screen view
 // in window media player 12). see red_stream_add_frame
 #define GRADUAL_MEDIUM_SCORE_TH 0.002
 
 // assumes that stride doesn't overflow
 BitmapGradualType bitmap_get_graduality_level(SpiceBitmap *bitmap)
 {
-    double score = 0.0;
-    int num_samples = 0;
-    int num_lines;
-    double chunk_score = 0.0;
-    int chunk_num_samples = 0;
-    uint32_t x, i;
+    double      score       = 0.0;
+    int         num_samples = 0;
+    int         num_lines;
+    double      chunk_score       = 0.0;
+    int         chunk_num_samples = 0;
+    uint32_t    x, i;
     SpiceChunk *chunk;
 
     chunk = bitmap->data->chunk;
     for (i = 0; i < bitmap->data->num_chunks; i++) {
         num_lines = chunk[i].len / bitmap->stride;
-        x = bitmap->x;
+        x         = bitmap->x;
         switch (bitmap->format) {
         case SPICE_BITMAP_FMT_16BIT:
             compute_lines_gradual_score_rgb16((rgb16_pixel_t *)chunk[i].data, x, num_lines,
@@ -157,12 +158,13 @@ static void put_32le(uint8_t **ptr, uint32_t val)
     put_16le(ptr, val & 0xffffu);
 }
 
-#define WRITE(buf, size, f) do { \
-    if (fwrite(buf, 1, (size), f) != (size)) \
-        goto write_err; \
-} while(0)
+#define WRITE(buf, size, f)                                                                        \
+    do {                                                                                           \
+        if (fwrite(buf, 1, (size), f) != (size))                                                   \
+            goto write_err;                                                                        \
+    } while (0)
 
-static bool dump_palette(FILE *f, SpicePalette* plt)
+static bool dump_palette(FILE *f, SpicePalette *plt)
 {
     int i;
     for (i = 0; i < plt->num_ents; i++) {
@@ -174,10 +176,10 @@ write_err:
     return false;
 }
 
-static bool dump_line(FILE *f, uint8_t* line, uint16_t n_pixel_bits, int width, int row_size)
+static bool dump_line(FILE *f, uint8_t *line, uint16_t n_pixel_bits, int width, int row_size)
 {
-    static const char zeroes[4] = { 0 };
-    int copy_bytes_size = SPICE_ALIGN(n_pixel_bits * width, 8) / 8;
+    static const char zeroes[4]       = {0};
+    int               copy_bytes_size = SPICE_ALIGN(n_pixel_bits * width, 8) / 8;
 
     WRITE(line, copy_bytes_size, f);
     // each line should be 4 bytes aligned
@@ -193,33 +195,33 @@ void dump_bitmap(SpiceBitmap *bitmap)
 {
     static uint32_t file_id = 0;
 
-    char file_str[200];
-    int rgb = TRUE;
-    uint16_t n_pixel_bits;
+    char          file_str[200];
+    int           rgb = TRUE;
+    uint16_t      n_pixel_bits;
     SpicePalette *plt = NULL;
-    uint32_t id;
-    int row_size;
-    uint32_t file_size;
-    int alpha = 0;
-    uint32_t header_size = 14 + 40;
-    uint32_t bitmap_data_offset;
-    FILE *f;
-    int i, j;
-    uint8_t header[128], *ptr;
+    uint32_t      id;
+    int           row_size;
+    uint32_t      file_size;
+    int           alpha       = 0;
+    uint32_t      header_size = 14 + 40;
+    uint32_t      bitmap_data_offset;
+    FILE *        f;
+    int           i, j;
+    uint8_t       header[128], *ptr;
 
     switch (bitmap->format) {
     case SPICE_BITMAP_FMT_1BIT_BE:
     case SPICE_BITMAP_FMT_1BIT_LE:
-        rgb = FALSE;
+        rgb          = FALSE;
         n_pixel_bits = 1;
         break;
     case SPICE_BITMAP_FMT_4BIT_BE:
     case SPICE_BITMAP_FMT_4BIT_LE:
-        rgb = FALSE;
+        rgb          = FALSE;
         n_pixel_bits = 4;
         break;
     case SPICE_BITMAP_FMT_8BIT:
-        rgb = FALSE;
+        rgb          = FALSE;
         n_pixel_bits = 8;
         break;
     case SPICE_BITMAP_FMT_16BIT:
@@ -233,7 +235,7 @@ void dump_bitmap(SpiceBitmap *bitmap)
         break;
     case SPICE_BITMAP_FMT_RGBA:
         n_pixel_bits = 32;
-        alpha = 1;
+        alpha        = 1;
         break;
     default:
         spice_error("invalid bitmap format  %u", bitmap->format);
@@ -246,7 +248,7 @@ void dump_bitmap(SpiceBitmap *bitmap)
         }
         plt = bitmap->palette;
     }
-    row_size = (((bitmap->x * n_pixel_bits) + 31) / 32) * 4;
+    row_size           = (((bitmap->x * n_pixel_bits) + 31) / 32) * 4;
     bitmap_data_offset = header_size;
 
     if (plt) {
@@ -280,7 +282,7 @@ void dump_bitmap(SpiceBitmap *bitmap)
 
     put_32le(&ptr, 0); // compression
 
-    put_32le(&ptr, 0); //file_size - bitmap_data_offset;
+    put_32le(&ptr, 0); // file_size - bitmap_data_offset;
     put_32le(&ptr, 0);
     put_32le(&ptr, 0);
     put_32le(&ptr, !plt ? 0 : plt->num_ents); // plt entries
@@ -294,10 +296,11 @@ void dump_bitmap(SpiceBitmap *bitmap)
     }
     /* writing the data */
     for (i = 0; i < bitmap->data->num_chunks; i++) {
-        SpiceChunk *chunk = &bitmap->data->chunk[i];
-        int num_lines = chunk->len / bitmap->stride;
+        SpiceChunk *chunk     = &bitmap->data->chunk[i];
+        int         num_lines = chunk->len / bitmap->stride;
         for (j = 0; j < num_lines; j++) {
-            if (!dump_line(f, chunk->data + (j * bitmap->stride), n_pixel_bits, bitmap->x, row_size))
+            if (!dump_line(f, chunk->data + (j * bitmap->stride), n_pixel_bits, bitmap->x,
+                           row_size))
                 goto write_err;
         }
     }

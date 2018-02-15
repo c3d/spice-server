@@ -20,31 +20,31 @@
 #endif
 
 #define _GNU_SOURCE
-#include <stdio.h>
-#include <stdarg.h>
-#include <stdlib.h>
 #include <errno.h>
-#include <string.h>
-#include <unistd.h>
+#include <inttypes.h>
 #include <poll.h>
 #include <pthread.h>
-#include <inttypes.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <glib.h>
 
-#include <spice/protocol.h>
-#include <spice/qxl_dev.h>
 #include <common/lz.h>
 #include <common/rect.h>
 #include <common/region.h>
 #include <common/ring.h>
+#include <spice/protocol.h>
+#include <spice/qxl_dev.h>
 
 #include "display-channel.h"
 #include "video-stream.h"
 
 #include "spice.h"
-#include "red-worker.h"
-#include "red-qxl.h"
 #include "cursor-channel.h"
+#include "red-qxl.h"
+#include "red-worker.h"
 #include "tree.h"
 
 // compatibility for FreeBSD
@@ -53,35 +53,36 @@
 #define pthread_setname_np pthread_set_name_np
 #endif
 
-#define CMD_RING_POLL_TIMEOUT 10 //milli
+#define CMD_RING_POLL_TIMEOUT 10 // milli
 #define CMD_RING_POLL_RETRIES 1
 
 #define INF_EVENT_WAIT ~0
 
-struct RedWorker {
-    pthread_t thread;
-    QXLInstance *qxl;
-    SpiceWatch *dispatch_watch;
-    int running;
+struct RedWorker
+{
+    pthread_t                  thread;
+    QXLInstance *              qxl;
+    SpiceWatch *               dispatch_watch;
+    int                        running;
     SpiceCoreInterfaceInternal core;
 
     unsigned int event_timeout;
 
     DisplayChannel *display_channel;
-    uint32_t display_poll_tries;
-    gboolean was_blocked;
+    uint32_t        display_poll_tries;
+    gboolean        was_blocked;
 
     CursorChannel *cursor_channel;
-    uint32_t cursor_poll_tries;
+    uint32_t       cursor_poll_tries;
 
     RedMemSlotInfo mem_slots;
 
-    SpiceImageCompression image_compression;
+    SpiceImageCompression   image_compression;
     spice_wan_compression_t jpeg_state;
     spice_wan_compression_t zlib_glz_state;
 
-    uint32_t process_display_generation;
-    RedStatNode stat;
+    uint32_t       process_display_generation;
+    RedStatNode    stat;
     RedStatCounter wakeup_counter;
     RedStatCounter command_counter;
     RedStatCounter full_loop_counter;
@@ -96,7 +97,7 @@ struct RedWorker {
 static int display_is_connected(RedWorker *worker)
 {
     return worker->display_channel &&
-        red_channel_is_connected(RED_CHANNEL(worker->display_channel));
+           red_channel_is_connected(RED_CHANNEL(worker->display_channel));
 }
 
 void red_drawable_unref(RedDrawable *red_drawable)
@@ -126,7 +127,7 @@ static gboolean red_process_cursor_cmd(RedWorker *worker, const QXLCommandExt *e
 static int red_process_cursor(RedWorker *worker, int *ring_is_empty)
 {
     QXLCommandExt ext_cmd;
-    int n = 0;
+    int           n = 0;
 
     if (!worker->running) {
         *ring_is_empty = TRUE;
@@ -167,10 +168,10 @@ static int red_process_cursor(RedWorker *worker, int *ring_is_empty)
 
 static RedDrawable *red_drawable_new(QXLInstance *qxl)
 {
-    RedDrawable * red = g_new0(RedDrawable, 1);
+    RedDrawable *red = g_new0(RedDrawable, 1);
 
     red->refs = 1;
-    red->qxl = qxl;
+    red->qxl  = qxl;
 
     return red;
 }
@@ -183,7 +184,8 @@ static gboolean red_process_surface_cmd(RedWorker *worker, QXLCommandExt *ext, g
         return FALSE;
     }
     display_channel_process_surface_cmd(worker->display_channel, &surface_cmd, loadvm);
-    // display_channel_process_surface_cmd() takes ownership of 'release_info_ext',
+    // display_channel_process_surface_cmd() takes ownership of
+    // 'release_info_ext',
     // we don't need to release it ourselves
     red_put_surface_cmd(&surface_cmd);
     return TRUE;
@@ -192,8 +194,8 @@ static gboolean red_process_surface_cmd(RedWorker *worker, QXLCommandExt *ext, g
 static int red_process_display(RedWorker *worker, int *ring_is_empty)
 {
     QXLCommandExt ext_cmd;
-    int n = 0;
-    uint64_t start = spice_get_monotonic_time_ns();
+    int           n     = 0;
+    uint64_t      start = spice_get_monotonic_time_ns();
 
     if (!worker->running) {
         *ring_is_empty = TRUE;
@@ -227,8 +229,8 @@ static int red_process_display(RedWorker *worker, int *ring_is_empty)
         case QXL_CMD_DRAW: {
             RedDrawable *red_drawable = red_drawable_new(worker->qxl); // returns with 1 ref
 
-            if (red_get_drawable(&worker->mem_slots, ext_cmd.group_id,
-                                 red_drawable, ext_cmd.cmd.data, ext_cmd.flags)) {
+            if (red_get_drawable(&worker->mem_slots, ext_cmd.group_id, red_drawable,
+                                 ext_cmd.cmd.data, ext_cmd.flags)) {
                 display_channel_process_draw(worker->display_channel, red_drawable,
                                              worker->process_display_generation);
             }
@@ -239,8 +241,8 @@ static int red_process_display(RedWorker *worker, int *ring_is_empty)
         case QXL_CMD_UPDATE: {
             RedUpdateCmd update;
 
-            if (!red_get_update_cmd(&worker->mem_slots, ext_cmd.group_id,
-                                    &update, ext_cmd.cmd.data)) {
+            if (!red_get_update_cmd(&worker->mem_slots, ext_cmd.group_id, &update,
+                                    ext_cmd.cmd.data)) {
                 break;
             }
             if (!display_channel_validate_surface(worker->display_channel, update.surface_id)) {
@@ -256,8 +258,8 @@ static int red_process_display(RedWorker *worker, int *ring_is_empty)
         case QXL_CMD_MESSAGE: {
             RedMessage message;
 
-            if (!red_get_message(&worker->mem_slots, ext_cmd.group_id,
-                                 &message, ext_cmd.cmd.data)) {
+            if (!red_get_message(&worker->mem_slots, ext_cmd.group_id, &message,
+                                 ext_cmd.cmd.data)) {
                 break;
             }
 #ifdef DEBUG
@@ -275,8 +277,8 @@ static int red_process_display(RedWorker *worker, int *ring_is_empty)
             spice_error("bad command type");
         }
         n++;
-        if (red_channel_all_blocked(RED_CHANNEL(worker->display_channel))
-            || spice_get_monotonic_time_ns() - start > NSEC_PER_SEC / 100) {
+        if (red_channel_all_blocked(RED_CHANNEL(worker->display_channel)) ||
+            spice_get_monotonic_time_ns() - start > NSEC_PER_SEC / 100) {
             worker->event_timeout = 0;
             return n;
         }
@@ -298,10 +300,12 @@ static void red_migrate_display(DisplayChannel *display, RedChannelClient *rcc)
      * Otherwise, (1) the client might display lossy regions that we don't track
      * (streams are not part of the migration data) (2) streams_timeout may occur
      * after the MIGRATE message has been sent. This can result in messages
-     * being sent to the client after MSG_MIGRATE and before MSG_MIGRATE_DATA (e.g.,
+     * being sent to the client after MSG_MIGRATE and before MSG_MIGRATE_DATA
+     * (e.g.,
      * STREAM_CLIP, STREAM_DESTROY, DRAW_COPY)
      * No message besides MSG_MIGRATE_DATA should be sent after MSG_MIGRATE.
-     * Notice that detach_and_stop_streams won't lead to any dev ram changes, since
+     * Notice that detach_and_stop_streams won't lead to any dev ram changes,
+     * since
      * handle_dev_stop already took care of releasing all the dev ram resources.
      */
     video_stream_detach_and_stop(display);
@@ -311,12 +315,11 @@ static void red_migrate_display(DisplayChannel *display, RedChannelClient *rcc)
 }
 
 typedef int (*red_process_t)(RedWorker *worker, int *ring_is_empty);
-static void flush_commands(RedWorker *worker, RedChannel *red_channel,
-                           red_process_t process)
+static void flush_commands(RedWorker *worker, RedChannel *red_channel, red_process_t process)
 {
     for (;;) {
         uint64_t end_time;
-        int ring_is_empty;
+        int      ring_is_empty;
 
         process(worker, &ring_is_empty);
         if (ring_is_empty) {
@@ -338,11 +341,13 @@ static void flush_commands(RedWorker *worker, RedChannel *red_channel,
             }
             red_channel_receive(red_channel);
             red_channel_send(red_channel);
-            // TODO: MC: the whole timeout will break since it takes lowest timeout, should
+            // TODO: MC: the whole timeout will break since it takes lowest timeout,
+            // should
             // do it client by client.
             if (spice_get_monotonic_time_ns() >= end_time) {
                 // TODO: we need to record the client that actually causes the timeout.
-                // So we need to check the locations of the various pipe heads when counting,
+                // So we need to check the locations of the various pipe heads when
+                // counting,
                 // and disconnect only those/that.
                 spice_warning("flush timeout");
                 red_channel_disconnect(red_channel);
@@ -355,18 +360,18 @@ static void flush_commands(RedWorker *worker, RedChannel *red_channel,
 
 static void flush_display_commands(RedWorker *worker)
 {
-    flush_commands(worker, RED_CHANNEL(worker->display_channel),
-                   red_process_display);
+    flush_commands(worker, RED_CHANNEL(worker->display_channel), red_process_display);
 }
 
 static void flush_cursor_commands(RedWorker *worker)
 {
-    flush_commands(worker, RED_CHANNEL(worker->cursor_channel),
-                   red_process_cursor);
+    flush_commands(worker, RED_CHANNEL(worker->cursor_channel), red_process_cursor);
 }
 
-// TODO: on timeout, don't disconnect all channels immediately - try to disconnect the slowest ones
-// first and maybe turn timeouts to several timeouts in order to disconnect channels gradually.
+// TODO: on timeout, don't disconnect all channels immediately - try to
+// disconnect the slowest ones
+// first and maybe turn timeouts to several timeouts in order to disconnect
+// channels gradually.
 // Should use disconnect or shutdown?
 static void flush_all_qxl_commands(RedWorker *worker)
 {
@@ -376,14 +381,12 @@ static void flush_all_qxl_commands(RedWorker *worker)
 
 static void guest_set_client_capabilities(RedWorker *worker)
 {
-    int i;
+    int               i;
     RedChannelClient *rcc;
-    uint8_t caps[SPICE_CAPABILITIES_SIZE] = { 0 };
-    int caps_available[] = {
-        SPICE_DISPLAY_CAP_SIZED_STREAM,
-        SPICE_DISPLAY_CAP_MONITORS_CONFIG,
-        SPICE_DISPLAY_CAP_COMPOSITE,
-        SPICE_DISPLAY_CAP_A8_SURFACE,
+    uint8_t           caps[SPICE_CAPABILITIES_SIZE] = {0};
+    int               caps_available[]              = {
+        SPICE_DISPLAY_CAP_SIZED_STREAM, SPICE_DISPLAY_CAP_MONITORS_CONFIG,
+        SPICE_DISPLAY_CAP_COMPOSITE, SPICE_DISPLAY_CAP_A8_SURFACE,
     };
     QXLInterface *qif = qxl_get_interface(worker->qxl);
 
@@ -393,11 +396,9 @@ static void guest_set_client_capabilities(RedWorker *worker)
     if (!qif->set_client_capabilities) {
         return;
     }
-#define SET_CAP(a,c)                                                    \
-        ((a)[(c) / 8] |= (1 << ((c) % 8)))
+#define SET_CAP(a, c) ((a)[(c) / 8] |= (1 << ((c) % 8)))
 
-#define CLEAR_CAP(a,c)                                                  \
-        ((a)[(c) / 8] &= ~(1 << ((c) % 8)))
+#define CLEAR_CAP(a, c) ((a)[(c) / 8] &= ~(1 << ((c) % 8)))
 
     if (!worker->running) {
         return;
@@ -407,11 +408,12 @@ static void guest_set_client_capabilities(RedWorker *worker)
         red_qxl_set_client_capabilities(worker->qxl, FALSE, caps);
     } else {
         // Take least common denominator
-        for (i = 0 ; i < SPICE_N_ELEMENTS(caps_available); ++i) {
+        for (i = 0; i < SPICE_N_ELEMENTS(caps_available); ++i) {
             SET_CAP(caps, caps_available[i]);
         }
-        FOREACH_CLIENT(worker->display_channel, rcc) {
-            for (i = 0 ; i < SPICE_N_ELEMENTS(caps_available); ++i) {
+        FOREACH_CLIENT(worker->display_channel, rcc)
+        {
+            for (i = 0; i < SPICE_N_ELEMENTS(caps_available); ++i) {
                 if (!red_channel_client_test_remote_cap(rcc, caps_available[i]))
                     CLEAR_CAP(caps, caps_available[i]);
             }
@@ -422,37 +424,34 @@ static void guest_set_client_capabilities(RedWorker *worker)
 
 static void handle_dev_update_async(void *opaque, void *payload)
 {
-    RedWorker *worker = opaque;
-    RedWorkerMessageUpdateAsync *msg = payload;
-    QXLRect *qxl_dirty_rects = NULL;
-    uint32_t num_dirty_rects = 0;
+    RedWorker *                  worker          = opaque;
+    RedWorkerMessageUpdateAsync *msg             = payload;
+    QXLRect *                    qxl_dirty_rects = NULL;
+    uint32_t                     num_dirty_rects = 0;
 
     spice_return_if_fail(worker->running);
     spice_return_if_fail(qxl_get_interface(worker->qxl)->update_area_complete);
 
     flush_display_commands(worker);
-    display_channel_update(worker->display_channel,
-                           msg->surface_id, &msg->qxl_area, msg->clear_dirty_region,
-                           &qxl_dirty_rects, &num_dirty_rects);
+    display_channel_update(worker->display_channel, msg->surface_id, &msg->qxl_area,
+                           msg->clear_dirty_region, &qxl_dirty_rects, &num_dirty_rects);
 
-    red_qxl_update_area_complete(worker->qxl, msg->surface_id,
-                                 qxl_dirty_rects, num_dirty_rects);
+    red_qxl_update_area_complete(worker->qxl, msg->surface_id, qxl_dirty_rects, num_dirty_rects);
     g_free(qxl_dirty_rects);
     red_qxl_async_complete(worker->qxl, msg->base.cookie);
 }
 
 static void handle_dev_update(void *opaque, void *payload)
 {
-    RedWorker *worker = opaque;
-    RedWorkerMessageUpdate *msg = payload;
-    QXLRect *qxl_dirty_rects = msg->qxl_dirty_rects;
+    RedWorker *             worker          = opaque;
+    RedWorkerMessageUpdate *msg             = payload;
+    QXLRect *               qxl_dirty_rects = msg->qxl_dirty_rects;
 
     spice_return_if_fail(worker->running);
 
     flush_display_commands(worker);
-    display_channel_update(worker->display_channel,
-                           msg->surface_id, msg->qxl_area, msg->clear_dirty_region,
-                           &qxl_dirty_rects, &msg->num_dirty_rects);
+    display_channel_update(worker->display_channel, msg->surface_id, msg->qxl_area,
+                           msg->clear_dirty_region, &qxl_dirty_rects, &msg->num_dirty_rects);
     if (msg->qxl_dirty_rects == NULL) {
         g_free(qxl_dirty_rects);
     }
@@ -460,18 +459,18 @@ static void handle_dev_update(void *opaque, void *payload)
 
 static void handle_dev_del_memslot(void *opaque, void *payload)
 {
-    RedWorker *worker = opaque;
-    RedWorkerMessageDelMemslot *msg = payload;
-    uint32_t slot_id = msg->slot_id;
-    uint32_t slot_group_id = msg->slot_group_id;
+    RedWorker *                 worker        = opaque;
+    RedWorkerMessageDelMemslot *msg           = payload;
+    uint32_t                    slot_id       = msg->slot_id;
+    uint32_t                    slot_group_id = msg->slot_group_id;
 
     memslot_info_del_slot(&worker->mem_slots, slot_group_id, slot_id);
 }
 
 static void handle_dev_destroy_surface_wait(void *opaque, void *payload)
 {
-    RedWorkerMessageDestroySurfaceWait *msg = payload;
-    RedWorker *worker = opaque;
+    RedWorkerMessageDestroySurfaceWait *msg    = payload;
+    RedWorker *                         worker = opaque;
 
     spice_return_if_fail(msg->surface_id == 0);
 
@@ -488,12 +487,12 @@ static void handle_dev_destroy_surfaces(void *opaque, void *payload)
     cursor_channel_reset(worker->cursor_channel);
 }
 
-static void dev_create_primary_surface(RedWorker *worker, uint32_t surface_id,
-                                       QXLDevSurfaceCreate surface)
+static void
+dev_create_primary_surface(RedWorker *worker, uint32_t surface_id, QXLDevSurfaceCreate surface)
 {
     DisplayChannel *display = worker->display_channel;
-    uint8_t *line_0;
-    int error;
+    uint8_t *       line_0;
+    int             error;
 
     spice_debug("trace");
     spice_warn_if_fail(surface_id == 0);
@@ -502,29 +501,28 @@ static void dev_create_primary_surface(RedWorker *worker, uint32_t surface_id,
     /* surface can arrive from guest unchecked so make sure
      * guest is not a malicious one and drop invalid requests
      */
-    if (!red_validate_surface(surface.width, surface.height,
-                              surface.stride, surface.format)) {
+    if (!red_validate_surface(surface.width, surface.height, surface.stride, surface.format)) {
         spice_warning("wrong primary surface creation request");
         return;
     }
 
-    line_0 = (uint8_t*)memslot_get_virt(&worker->mem_slots, surface.mem,
-                                        surface.height * abs(surface.stride),
-                                        surface.group_id, &error);
+    line_0 =
+        (uint8_t *)memslot_get_virt(&worker->mem_slots, surface.mem,
+                                    surface.height * abs(surface.stride), surface.group_id, &error);
     if (error) {
         return;
     }
     if (worker->record) {
-        red_record_primary_surface_create(worker->record,
-                                          &surface, line_0);
+        red_record_primary_surface_create(worker->record, &surface, line_0);
     }
 
     if (surface.stride < 0) {
-        line_0 -= (int32_t)(surface.stride * (surface.height -1));
+        line_0 -= (int32_t)(surface.stride * (surface.height - 1));
     }
 
-    display_channel_create_surface(display, 0, surface.width, surface.height, surface.stride, surface.format,
-                                   line_0, surface.flags & QXL_SURF_FLAG_KEEP_DATA, TRUE);
+    display_channel_create_surface(display, 0, surface.width, surface.height, surface.stride,
+                                   surface.format, line_0, surface.flags & QXL_SURF_FLAG_KEEP_DATA,
+                                   TRUE);
     display_channel_set_monitors_config_to_primary(display);
 
     CommonGraphicsChannel *common = COMMON_GRAPHICS_CHANNEL(worker->display_channel);
@@ -545,8 +543,8 @@ static void dev_create_primary_surface(RedWorker *worker, uint32_t surface_id,
 
 static void handle_dev_create_primary_surface(void *opaque, void *payload)
 {
-    RedWorkerMessageCreatePrimarySurface *msg = payload;
-    RedWorker *worker = opaque;
+    RedWorkerMessageCreatePrimarySurface *msg    = payload;
+    RedWorker *                           worker = opaque;
 
     dev_create_primary_surface(worker, msg->surface_id, msg->surface);
 }
@@ -575,18 +573,18 @@ static void destroy_primary_surface(RedWorker *worker, uint32_t surface_id)
 
 static void handle_dev_destroy_primary_surface(void *opaque, void *payload)
 {
-    RedWorkerMessageDestroyPrimarySurface *msg = payload;
-    RedWorker *worker = opaque;
-    uint32_t surface_id = msg->surface_id;
+    RedWorkerMessageDestroyPrimarySurface *msg        = payload;
+    RedWorker *                            worker     = opaque;
+    uint32_t                               surface_id = msg->surface_id;
 
     destroy_primary_surface(worker, surface_id);
 }
 
 static void handle_dev_destroy_primary_surface_async(void *opaque, void *payload)
 {
-    RedWorkerMessageDestroyPrimarySurfaceAsync *msg = payload;
-    RedWorker *worker = opaque;
-    uint32_t surface_id = msg->surface_id;
+    RedWorkerMessageDestroyPrimarySurfaceAsync *msg        = payload;
+    RedWorker *                                 worker     = opaque;
+    uint32_t                                    surface_id = msg->surface_id;
 
     destroy_primary_surface(worker, surface_id);
     red_qxl_destroy_primary_surface_complete(worker->qxl->st);
@@ -595,8 +593,8 @@ static void handle_dev_destroy_primary_surface_async(void *opaque, void *payload
 
 static void handle_dev_flush_surfaces_async(void *opaque, void *payload)
 {
-    RedWorker *worker = opaque;
-    RedWorkerMessageFlushSurfacesAsync *msg = payload;
+    RedWorker *                         worker = opaque;
+    RedWorkerMessageFlushSurfacesAsync *msg    = payload;
 
     flush_all_qxl_commands(worker);
     display_channel_flush_all_surfaces(worker->display_channel);
@@ -638,7 +636,7 @@ static void handle_dev_start(void *opaque, void *payload)
         common_graphics_channel_set_during_target_migrate(common, FALSE);
         display_channel_wait_for_migrate_data(worker->display_channel);
     }
-    worker->running = TRUE;
+    worker->running       = TRUE;
     worker->event_timeout = 0;
     guest_set_client_capabilities(worker);
 }
@@ -653,11 +651,11 @@ static void handle_dev_wakeup(void *opaque, void *payload)
 
 static void handle_dev_oom(void *opaque, void *payload)
 {
-    RedWorker *worker = opaque;
+    RedWorker *     worker  = opaque;
     DisplayChannel *display = worker->display_channel;
 
     RedChannel *display_red_channel = RED_CHANNEL(display);
-    int ring_is_empty;
+    int         ring_is_empty;
 
     spice_return_if_fail(worker->running);
     // streams? but without streams also leak
@@ -689,8 +687,8 @@ static void handle_dev_reset_image_cache(void *opaque, void *payload)
 
 static void handle_dev_destroy_surface_wait_async(void *opaque, void *payload)
 {
-    RedWorkerMessageDestroySurfaceWaitAsync *msg = payload;
-    RedWorker *worker = opaque;
+    RedWorkerMessageDestroySurfaceWaitAsync *msg    = payload;
+    RedWorker *                              worker = opaque;
 
     display_channel_destroy_surface_wait(worker->display_channel, msg->surface_id);
     red_qxl_async_complete(worker->qxl, msg->base.cookie);
@@ -698,8 +696,8 @@ static void handle_dev_destroy_surface_wait_async(void *opaque, void *payload)
 
 static void handle_dev_destroy_surfaces_async(void *opaque, void *payload)
 {
-    RedWorker *worker = opaque;
-    RedWorkerMessageDestroySurfacesAsync *msg = payload;
+    RedWorker *                           worker = opaque;
+    RedWorkerMessageDestroySurfacesAsync *msg    = payload;
 
     flush_all_qxl_commands(worker);
     display_channel_destroy_surfaces(worker->display_channel);
@@ -709,8 +707,8 @@ static void handle_dev_destroy_surfaces_async(void *opaque, void *payload)
 
 static void handle_dev_create_primary_surface_async(void *opaque, void *payload)
 {
-    RedWorkerMessageCreatePrimarySurfaceAsync *msg = payload;
-    RedWorker *worker = opaque;
+    RedWorkerMessageCreatePrimarySurfaceAsync *msg    = payload;
+    RedWorker *                                worker = opaque;
 
     dev_create_primary_surface(worker, msg->surface_id, msg->surface);
     red_qxl_create_primary_surface_complete(worker->qxl->st, &msg->surface);
@@ -719,10 +717,10 @@ static void handle_dev_create_primary_surface_async(void *opaque, void *payload)
 
 static void handle_dev_display_connect(void *opaque, void *payload)
 {
-    RedWorkerMessageDisplayConnect *msg = payload;
-    RedWorker *worker = opaque;
-    DisplayChannel *display = worker->display_channel;
-    DisplayChannelClient *dcc;
+    RedWorkerMessageDisplayConnect *msg     = payload;
+    RedWorker *                     worker  = opaque;
+    DisplayChannel *                display = worker->display_channel;
+    DisplayChannelClient *          dcc;
 
     spice_debug("connect new client");
     spice_return_if_fail(display);
@@ -741,9 +739,9 @@ static void handle_dev_display_connect(void *opaque, void *payload)
 
 static void handle_dev_display_disconnect(void *opaque, void *payload)
 {
-    RedWorkerMessageDisplayDisconnect *msg = payload;
-    RedChannelClient *rcc = msg->rcc;
-    RedWorker *worker = opaque;
+    RedWorkerMessageDisplayDisconnect *msg    = payload;
+    RedChannelClient *                 rcc    = msg->rcc;
+    RedWorker *                        worker = opaque;
 
     spice_debug("disconnect display client");
     spice_assert(rcc);
@@ -755,8 +753,8 @@ static void handle_dev_display_disconnect(void *opaque, void *payload)
 
 static void handle_dev_display_migrate(void *opaque, void *payload)
 {
-    RedWorkerMessageDisplayMigrate *msg = payload;
-    RedWorker *worker = opaque;
+    RedWorkerMessageDisplayMigrate *msg    = payload;
+    RedWorker *                     worker = opaque;
 
     RedChannelClient *rcc = msg->rcc;
     spice_debug("migrate display client");
@@ -772,22 +770,21 @@ static inline uint32_t qxl_monitors_config_size(uint32_t heads)
 
 static void handle_dev_monitors_config_async(void *opaque, void *payload)
 {
-    RedWorkerMessageMonitorsConfigAsync *msg = payload;
-    RedWorker *worker = opaque;
-    int error;
-    uint16_t count, max_allowed;
-    QXLMonitorsConfig *dev_monitors_config =
-        (QXLMonitorsConfig*)memslot_get_virt(&worker->mem_slots, msg->monitors_config,
-                                             qxl_monitors_config_size(1),
-                                             msg->group_id, &error);
+    RedWorkerMessageMonitorsConfigAsync *msg    = payload;
+    RedWorker *                          worker = opaque;
+    int                                  error;
+    uint16_t                             count, max_allowed;
+    QXLMonitorsConfig *                  dev_monitors_config =
+        (QXLMonitorsConfig *)memslot_get_virt(&worker->mem_slots, msg->monitors_config,
+                                              qxl_monitors_config_size(1), msg->group_id, &error);
 
     if (error) {
         /* TODO: raise guest bug (requires added QXL interface) */
         goto async_complete;
     }
     worker->driver_cap_monitors_config = 1;
-    count = dev_monitors_config->count;
-    max_allowed = dev_monitors_config->max_allowed;
+    count                              = dev_monitors_config->count;
+    max_allowed                        = dev_monitors_config->max_allowed;
     if (count == 0) {
         spice_warning("ignoring an empty monitors config message from driver");
         goto async_complete;
@@ -795,15 +792,13 @@ static void handle_dev_monitors_config_async(void *opaque, void *payload)
     if (count > max_allowed) {
         spice_warning("ignoring malformed monitors_config from driver, "
                       "count > max_allowed %d > %d",
-                      count,
-                      max_allowed);
+                      count, max_allowed);
         goto async_complete;
     }
     /* get pointer again to check virtual size */
-    dev_monitors_config =
-        (QXLMonitorsConfig*)memslot_get_virt(&worker->mem_slots, msg->monitors_config,
-                                             qxl_monitors_config_size(count),
-                                             msg->group_id, &error);
+    dev_monitors_config = (QXLMonitorsConfig *)memslot_get_virt(
+        &worker->mem_slots, msg->monitors_config, qxl_monitors_config_size(count), msg->group_id,
+        &error);
     if (error) {
         /* TODO: raise guest bug (requires added QXL interface) */
         goto async_complete;
@@ -818,12 +813,11 @@ async_complete:
 /* TODO: special, perhaps use another dispatcher? */
 static void handle_dev_cursor_connect(void *opaque, void *payload)
 {
-    RedWorkerMessageCursorConnect *msg = payload;
-    RedWorker *worker = opaque;
+    RedWorkerMessageCursorConnect *msg    = payload;
+    RedWorker *                    worker = opaque;
 
     spice_debug("cursor connect");
-    cursor_channel_connect(worker->cursor_channel,
-                           msg->client, msg->stream, msg->migration,
+    cursor_channel_connect(worker->cursor_channel, msg->client, msg->stream, msg->migration,
                            &msg->caps);
     g_object_unref(msg->client);
     red_channel_capabilities_reset(&msg->caps);
@@ -832,7 +826,7 @@ static void handle_dev_cursor_connect(void *opaque, void *payload)
 static void handle_dev_cursor_disconnect(void *opaque, void *payload)
 {
     RedWorkerMessageCursorDisconnect *msg = payload;
-    RedChannelClient *rcc = msg->rcc;
+    RedChannelClient *                rcc = msg->rcc;
 
     spice_debug("disconnect cursor client");
     spice_return_if_fail(rcc);
@@ -842,7 +836,7 @@ static void handle_dev_cursor_disconnect(void *opaque, void *payload)
 static void handle_dev_cursor_migrate(void *opaque, void *payload)
 {
     RedWorkerMessageCursorMigrate *msg = payload;
-    RedChannelClient *rcc = msg->rcc;
+    RedChannelClient *             rcc = msg->rcc;
 
     spice_debug("migrate cursor client");
     cursor_channel_client_migrate(rcc);
@@ -851,9 +845,9 @@ static void handle_dev_cursor_migrate(void *opaque, void *payload)
 
 static void handle_dev_set_compression(void *opaque, void *payload)
 {
-    RedWorkerMessageSetCompression *msg = payload;
-    RedWorker *worker = opaque;
-    SpiceImageCompression image_compression = msg->image_compression;
+    RedWorkerMessageSetCompression *msg               = payload;
+    RedWorker *                     worker            = opaque;
+    SpiceImageCompression           image_compression = msg->image_compression;
 
     switch (image_compression) {
     case SPICE_IMAGE_COMPRESSION_AUTO_LZ:
@@ -891,16 +885,16 @@ static void handle_dev_set_compression(void *opaque, void *payload)
 
 static void handle_dev_set_streaming_video(void *opaque, void *payload)
 {
-    RedWorkerMessageSetStreamingVideo *msg = payload;
-    RedWorker *worker = opaque;
+    RedWorkerMessageSetStreamingVideo *msg    = payload;
+    RedWorker *                        worker = opaque;
 
     display_channel_set_stream_video(worker->display_channel, msg->streaming_video);
 }
 
 static void handle_dev_set_video_codecs(void *opaque, void *payload)
 {
-    RedWorkerMessageSetVideoCodecs *msg = payload;
-    RedWorker *worker = opaque;
+    RedWorkerMessageSetVideoCodecs *msg    = payload;
+    RedWorker *                     worker = opaque;
 
     display_channel_set_video_codecs(worker->display_channel, msg->video_codecs);
     g_array_unref(msg->video_codecs);
@@ -908,8 +902,8 @@ static void handle_dev_set_video_codecs(void *opaque, void *payload)
 
 static void handle_dev_set_mouse_mode(void *opaque, void *payload)
 {
-    RedWorkerMessageSetMouseMode *msg = payload;
-    RedWorker *worker = opaque;
+    RedWorkerMessageSetMouseMode *msg    = payload;
+    RedWorker *                   worker = opaque;
 
     spice_debug("mouse mode %u", msg->mode);
     cursor_channel_set_mouse_mode(worker->cursor_channel, msg->mode);
@@ -924,9 +918,9 @@ static void dev_add_memslot(RedWorker *worker, QXLDevMemSlot mem_slot)
 
 static void handle_dev_add_memslot(void *opaque, void *payload)
 {
-    RedWorker *worker = opaque;
-    RedWorkerMessageAddMemslot *msg = payload;
-    QXLDevMemSlot mem_slot = msg->mem_slot;
+    RedWorker *                 worker   = opaque;
+    RedWorkerMessageAddMemslot *msg      = payload;
+    QXLDevMemSlot               mem_slot = msg->mem_slot;
 
     memslot_info_add_slot(&worker->mem_slots, mem_slot.slot_group_id, mem_slot.slot_id,
                           mem_slot.addr_delta, mem_slot.virt_start, mem_slot.virt_end,
@@ -935,8 +929,8 @@ static void handle_dev_add_memslot(void *opaque, void *payload)
 
 static void handle_dev_add_memslot_async(void *opaque, void *payload)
 {
-    RedWorkerMessageAddMemslotAsync *msg = payload;
-    RedWorker *worker = opaque;
+    RedWorkerMessageAddMemslotAsync *msg    = payload;
+    RedWorker *                      worker = opaque;
 
     dev_add_memslot(worker, msg->mem_slot);
     red_qxl_async_complete(worker->qxl, msg->base.cookie);
@@ -956,19 +950,17 @@ static void handle_dev_driver_unload(void *opaque, void *payload)
     worker->driver_cap_monitors_config = 0;
 }
 
-static
-void handle_dev_gl_scanout(void *opaque, void *payload)
+static void handle_dev_gl_scanout(void *opaque, void *payload)
 {
     RedWorker *worker = opaque;
 
     display_channel_gl_scanout(worker->display_channel);
 }
 
-static
-void handle_dev_gl_draw_async(void *opaque, void *payload)
+static void handle_dev_gl_draw_async(void *opaque, void *payload)
 {
-    RedWorker *worker = opaque;
-    RedWorkerMessageGlDraw *draw = payload;
+    RedWorker *             worker = opaque;
+    RedWorkerMessageGlDraw *draw   = payload;
 
     display_channel_gl_draw(worker->display_channel, &draw->draw);
 }
@@ -997,14 +989,14 @@ static bool loadvm_command(RedWorker *worker, QXLCommandExt *ext)
 
 static void handle_dev_loadvm_commands(void *opaque, void *payload)
 {
-    RedWorkerMessageLoadvmCommands *msg = payload;
-    RedWorker *worker = opaque;
-    uint32_t i;
-    uint32_t count = msg->count;
-    QXLCommandExt *ext = msg->ext;
+    RedWorkerMessageLoadvmCommands *msg    = payload;
+    RedWorker *                     worker = opaque;
+    uint32_t                        i;
+    uint32_t                        count = msg->count;
+    QXLCommandExt *                 ext   = msg->ext;
 
     spice_debug("loadvm_commands");
-    for (i = 0 ; i < count ; ++i) {
+    for (i = 0; i < count; ++i) {
         if (!loadvm_command(worker, &ext[i])) {
             /* XXX allow failure in loadvm? */
             spice_warning("failed loadvm command type (%d)", ext[i].cmd.type);
@@ -1022,194 +1014,107 @@ static void worker_dispatcher_record(void *opaque, uint32_t message_type, void *
 static void register_callbacks(Dispatcher *dispatcher)
 {
     /* TODO: register cursor & display specific msg in respective channel files */
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DISPLAY_CONNECT,
-                                handle_dev_display_connect,
-                                sizeof(RedWorkerMessageDisplayConnect),
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DISPLAY_CONNECT,
+                                handle_dev_display_connect, sizeof(RedWorkerMessageDisplayConnect),
                                 false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DISPLAY_DISCONNECT,
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DISPLAY_DISCONNECT,
                                 handle_dev_display_disconnect,
-                                sizeof(RedWorkerMessageDisplayDisconnect),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DISPLAY_MIGRATE,
-                                handle_dev_display_migrate,
-                                sizeof(RedWorkerMessageDisplayMigrate),
+                                sizeof(RedWorkerMessageDisplayDisconnect), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DISPLAY_MIGRATE,
+                                handle_dev_display_migrate, sizeof(RedWorkerMessageDisplayMigrate),
                                 false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_CURSOR_CONNECT,
-                                handle_dev_cursor_connect,
-                                sizeof(RedWorkerMessageCursorConnect),
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_CURSOR_CONNECT,
+                                handle_dev_cursor_connect, sizeof(RedWorkerMessageCursorConnect),
                                 false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_CURSOR_DISCONNECT,
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_CURSOR_DISCONNECT,
                                 handle_dev_cursor_disconnect,
-                                sizeof(RedWorkerMessageCursorDisconnect),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_CURSOR_MIGRATE,
-                                handle_dev_cursor_migrate,
-                                sizeof(RedWorkerMessageCursorMigrate),
+                                sizeof(RedWorkerMessageCursorDisconnect), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_CURSOR_MIGRATE,
+                                handle_dev_cursor_migrate, sizeof(RedWorkerMessageCursorMigrate),
                                 false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_UPDATE,
-                                handle_dev_update,
-                                sizeof(RedWorkerMessageUpdate),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_UPDATE_ASYNC,
-                                handle_dev_update_async,
-                                sizeof(RedWorkerMessageUpdateAsync),
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_UPDATE, handle_dev_update,
+                                sizeof(RedWorkerMessageUpdate), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_UPDATE_ASYNC,
+                                handle_dev_update_async, sizeof(RedWorkerMessageUpdateAsync),
                                 false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_ADD_MEMSLOT,
-                                handle_dev_add_memslot,
-                                sizeof(RedWorkerMessageAddMemslot),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_ADD_MEMSLOT_ASYNC,
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_ADD_MEMSLOT, handle_dev_add_memslot,
+                                sizeof(RedWorkerMessageAddMemslot), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_ADD_MEMSLOT_ASYNC,
                                 handle_dev_add_memslot_async,
-                                sizeof(RedWorkerMessageAddMemslotAsync),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DEL_MEMSLOT,
-                                handle_dev_del_memslot,
-                                sizeof(RedWorkerMessageDelMemslot),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DESTROY_SURFACES,
+                                sizeof(RedWorkerMessageAddMemslotAsync), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DEL_MEMSLOT, handle_dev_del_memslot,
+                                sizeof(RedWorkerMessageDelMemslot), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DESTROY_SURFACES,
                                 handle_dev_destroy_surfaces,
-                                sizeof(RedWorkerMessageDestroySurfaces),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DESTROY_SURFACES_ASYNC,
+                                sizeof(RedWorkerMessageDestroySurfaces), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DESTROY_SURFACES_ASYNC,
                                 handle_dev_destroy_surfaces_async,
-                                sizeof(RedWorkerMessageDestroySurfacesAsync),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DESTROY_PRIMARY_SURFACE,
+                                sizeof(RedWorkerMessageDestroySurfacesAsync), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DESTROY_PRIMARY_SURFACE,
                                 handle_dev_destroy_primary_surface,
-                                sizeof(RedWorkerMessageDestroyPrimarySurface),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DESTROY_PRIMARY_SURFACE_ASYNC,
+                                sizeof(RedWorkerMessageDestroyPrimarySurface), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DESTROY_PRIMARY_SURFACE_ASYNC,
                                 handle_dev_destroy_primary_surface_async,
-                                sizeof(RedWorkerMessageDestroyPrimarySurfaceAsync),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_CREATE_PRIMARY_SURFACE_ASYNC,
+                                sizeof(RedWorkerMessageDestroyPrimarySurfaceAsync), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_CREATE_PRIMARY_SURFACE_ASYNC,
                                 handle_dev_create_primary_surface_async,
-                                sizeof(RedWorkerMessageCreatePrimarySurfaceAsync),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_CREATE_PRIMARY_SURFACE,
+                                sizeof(RedWorkerMessageCreatePrimarySurfaceAsync), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_CREATE_PRIMARY_SURFACE,
                                 handle_dev_create_primary_surface,
-                                sizeof(RedWorkerMessageCreatePrimarySurface),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_RESET_IMAGE_CACHE,
+                                sizeof(RedWorkerMessageCreatePrimarySurface), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_RESET_IMAGE_CACHE,
                                 handle_dev_reset_image_cache,
-                                sizeof(RedWorkerMessageResetImageCache),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_RESET_CURSOR,
-                                handle_dev_reset_cursor,
-                                sizeof(RedWorkerMessageResetCursor),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_WAKEUP,
-                                handle_dev_wakeup,
-                                sizeof(RedWorkerMessageWakeup),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_OOM,
-                                handle_dev_oom,
-                                sizeof(RedWorkerMessageOom),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_START,
-                                handle_dev_start,
-                                sizeof(RedWorkerMessageStart),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_FLUSH_SURFACES_ASYNC,
+                                sizeof(RedWorkerMessageResetImageCache), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_RESET_CURSOR,
+                                handle_dev_reset_cursor, sizeof(RedWorkerMessageResetCursor), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_WAKEUP, handle_dev_wakeup,
+                                sizeof(RedWorkerMessageWakeup), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_OOM, handle_dev_oom,
+                                sizeof(RedWorkerMessageOom), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_START, handle_dev_start,
+                                sizeof(RedWorkerMessageStart), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_FLUSH_SURFACES_ASYNC,
                                 handle_dev_flush_surfaces_async,
-                                sizeof(RedWorkerMessageFlushSurfacesAsync),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_STOP,
-                                handle_dev_stop,
-                                sizeof(RedWorkerMessageStop),
+                                sizeof(RedWorkerMessageFlushSurfacesAsync), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_STOP, handle_dev_stop,
+                                sizeof(RedWorkerMessageStop), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_LOADVM_COMMANDS,
+                                handle_dev_loadvm_commands, sizeof(RedWorkerMessageLoadvmCommands),
                                 true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_LOADVM_COMMANDS,
-                                handle_dev_loadvm_commands,
-                                sizeof(RedWorkerMessageLoadvmCommands),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_SET_COMPRESSION,
-                                handle_dev_set_compression,
-                                sizeof(RedWorkerMessageSetCompression),
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_SET_COMPRESSION,
+                                handle_dev_set_compression, sizeof(RedWorkerMessageSetCompression),
                                 false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_SET_STREAMING_VIDEO,
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_SET_STREAMING_VIDEO,
                                 handle_dev_set_streaming_video,
-                                sizeof(RedWorkerMessageSetStreamingVideo),
+                                sizeof(RedWorkerMessageSetStreamingVideo), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_SET_VIDEO_CODECS,
+                                handle_dev_set_video_codecs, sizeof(RedWorkerMessageSetVideoCodecs),
                                 false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_SET_VIDEO_CODECS,
-                                handle_dev_set_video_codecs,
-                                sizeof(RedWorkerMessageSetVideoCodecs),
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_SET_MOUSE_MODE,
+                                handle_dev_set_mouse_mode, sizeof(RedWorkerMessageSetMouseMode),
                                 false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_SET_MOUSE_MODE,
-                                handle_dev_set_mouse_mode,
-                                sizeof(RedWorkerMessageSetMouseMode),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DESTROY_SURFACE_WAIT,
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DESTROY_SURFACE_WAIT,
                                 handle_dev_destroy_surface_wait,
-                                sizeof(RedWorkerMessageDestroySurfaceWait),
-                                true);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DESTROY_SURFACE_WAIT_ASYNC,
+                                sizeof(RedWorkerMessageDestroySurfaceWait), true);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DESTROY_SURFACE_WAIT_ASYNC,
                                 handle_dev_destroy_surface_wait_async,
-                                sizeof(RedWorkerMessageDestroySurfaceWaitAsync),
+                                sizeof(RedWorkerMessageDestroySurfaceWaitAsync), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_RESET_MEMSLOTS,
+                                handle_dev_reset_memslots, sizeof(RedWorkerMessageResetMemslots),
                                 false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_RESET_MEMSLOTS,
-                                handle_dev_reset_memslots,
-                                sizeof(RedWorkerMessageResetMemslots),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_MONITORS_CONFIG_ASYNC,
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_MONITORS_CONFIG_ASYNC,
                                 handle_dev_monitors_config_async,
-                                sizeof(RedWorkerMessageMonitorsConfigAsync),
+                                sizeof(RedWorkerMessageMonitorsConfigAsync), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_DRIVER_UNLOAD,
+                                handle_dev_driver_unload, sizeof(RedWorkerMessageDriverUnload),
                                 false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_DRIVER_UNLOAD,
-                                handle_dev_driver_unload,
-                                sizeof(RedWorkerMessageDriverUnload),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_GL_SCANOUT,
-                                handle_dev_gl_scanout,
-                                sizeof(RedWorkerMessageGlScanout),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_GL_DRAW_ASYNC,
-                                handle_dev_gl_draw_async,
-                                sizeof(RedWorkerMessageGlDraw),
-                                false);
-    dispatcher_register_handler(dispatcher,
-                                RED_WORKER_MESSAGE_CLOSE_WORKER,
-                                handle_dev_close,
-                                sizeof(RedWorkerMessageClose),
-                                false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_GL_SCANOUT, handle_dev_gl_scanout,
+                                sizeof(RedWorkerMessageGlScanout), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_GL_DRAW_ASYNC,
+                                handle_dev_gl_draw_async, sizeof(RedWorkerMessageGlDraw), false);
+    dispatcher_register_handler(dispatcher, RED_WORKER_MESSAGE_CLOSE_WORKER, handle_dev_close,
+                                sizeof(RedWorkerMessageClose), false);
 }
-
-
 
 static void handle_dev_input(int fd, int event, void *opaque)
 {
@@ -1218,19 +1123,20 @@ static void handle_dev_input(int fd, int event, void *opaque)
     dispatcher_handle_recv_read(dispatcher);
 }
 
-typedef struct RedWorkerSource {
-    GSource source;
+typedef struct RedWorkerSource
+{
+    GSource    source;
     RedWorker *worker;
 } RedWorkerSource;
 
 static gboolean worker_source_prepare(GSource *source, gint *p_timeout)
 {
     RedWorkerSource *wsource = SPICE_CONTAINEROF(source, RedWorkerSource, source);
-    RedWorker *worker = wsource->worker;
-    unsigned int timeout;
+    RedWorker *      worker  = wsource->worker;
+    unsigned int     timeout;
 
-    timeout = MIN(worker->event_timeout,
-                  display_channel_get_streams_timeout(worker->display_channel));
+    timeout =
+        MIN(worker->event_timeout, display_channel_get_streams_timeout(worker->display_channel));
 
     *p_timeout = (timeout == INF_EVENT_WAIT) ? -1 : timeout;
     if (*p_timeout == 0)
@@ -1246,18 +1152,17 @@ static gboolean worker_source_prepare(GSource *source, gint *p_timeout)
 static gboolean worker_source_check(GSource *source)
 {
     RedWorkerSource *wsource = SPICE_CONTAINEROF(source, RedWorkerSource, source);
-    RedWorker *worker = wsource->worker;
+    RedWorker *      worker  = wsource->worker;
 
     return worker->running /* TODO && worker->pending_process */;
 }
 
-static gboolean worker_source_dispatch(GSource *source, GSourceFunc callback,
-                                       gpointer user_data)
+static gboolean worker_source_dispatch(GSource *source, GSourceFunc callback, gpointer user_data)
 {
     RedWorkerSource *wsource = SPICE_CONTAINEROF(source, RedWorkerSource, source);
-    RedWorker *worker = wsource->worker;
-    DisplayChannel *display = worker->display_channel;
-    int ring_is_empty;
+    RedWorker *      worker  = wsource->worker;
+    DisplayChannel * display = worker->display_channel;
+    int              ring_is_empty;
 
     /* during migration, in the dest, the display channel can be initialized
        while the global lz data not since migrate data msg hasn't been
@@ -1269,7 +1174,7 @@ static gboolean worker_source_dispatch(GSource *source, GSourceFunc callback,
     video_stream_timeout(display);
 
     worker->event_timeout = INF_EVENT_WAIT;
-    worker->was_blocked = FALSE;
+    worker->was_blocked   = FALSE;
     red_process_cursor(worker, &ring_is_empty);
     red_process_display(worker, &ring_is_empty);
 
@@ -1278,29 +1183,29 @@ static gboolean worker_source_dispatch(GSource *source, GSourceFunc callback,
 
 /* cannot be const */
 static GSourceFuncs worker_source_funcs = {
-    .prepare = worker_source_prepare,
-    .check = worker_source_check,
+    .prepare  = worker_source_prepare,
+    .check    = worker_source_check,
     .dispatch = worker_source_dispatch,
 };
 
-RedWorker* red_worker_new(QXLInstance *qxl,
+RedWorker *red_worker_new(QXLInstance *    qxl,
                           const ClientCbs *client_cursor_cbs,
                           const ClientCbs *client_display_cbs)
 {
     QXLDevInitInfo init_info;
-    RedWorker *worker;
-    Dispatcher *dispatcher;
-    RedsState *reds = red_qxl_get_server(qxl->st);
-    RedChannel *channel;
+    RedWorker *    worker;
+    Dispatcher *   dispatcher;
+    RedsState *    reds = red_qxl_get_server(qxl->st);
+    RedChannel *   channel;
 
     red_qxl_get_init_info(qxl, &init_info);
 
-    worker = g_new0(RedWorker, 1);
-    worker->core = event_loop_core;
+    worker                    = g_new0(RedWorker, 1);
+    worker->core              = event_loop_core;
     worker->core.main_context = g_main_context_new();
 
     worker->record = reds_get_record(reds);
-    dispatcher = red_qxl_get_dispatcher(qxl);
+    dispatcher     = red_qxl_get_dispatcher(qxl);
     dispatcher_set_opaque(dispatcher, worker);
 
     worker->qxl = qxl;
@@ -1309,9 +1214,9 @@ RedWorker* red_worker_new(QXLInstance *qxl,
         dispatcher_register_universal_handler(dispatcher, worker_dispatcher_record);
     }
 
-    worker->image_compression = spice_server_get_image_compression(reds);
-    worker->jpeg_state = reds_get_jpeg_state(reds);
-    worker->zlib_glz_state = reds_get_zlib_glz_state(reds);
+    worker->image_compression          = spice_server_get_image_compression(reds);
+    worker->jpeg_state                 = reds_get_jpeg_state(reds);
+    worker->zlib_glz_state             = reds_get_zlib_glz_state(reds);
     worker->driver_cap_monitors_config = 0;
     char worker_str[20];
     sprintf(worker_str, "display[%d]", worker->qxl->id);
@@ -1331,28 +1236,23 @@ RedWorker* red_worker_new(QXLInstance *qxl,
     g_source_attach(source, worker->core.main_context);
     g_source_unref(source);
 
-    memslot_info_init(&worker->mem_slots,
-                      init_info.num_memslots_groups,
-                      init_info.num_memslots,
-                      init_info.memslot_gen_bits,
-                      init_info.memslot_id_bits,
+    memslot_info_init(&worker->mem_slots, init_info.num_memslots_groups, init_info.num_memslots,
+                      init_info.memslot_gen_bits, init_info.memslot_id_bits,
                       init_info.internal_groupslot_id);
 
     worker->event_timeout = INF_EVENT_WAIT;
 
-    worker->cursor_channel = cursor_channel_new(reds, qxl->id,
-                                                &worker->core);
-    channel = RED_CHANNEL(worker->cursor_channel);
+    worker->cursor_channel = cursor_channel_new(reds, qxl->id, &worker->core);
+    channel                = RED_CHANNEL(worker->cursor_channel);
     red_channel_init_stat_node(channel, &worker->stat, "cursor_channel");
     red_channel_register_client_cbs(channel, client_cursor_cbs, dispatcher);
     g_object_set_data(G_OBJECT(channel), "dispatcher", dispatcher);
     reds_register_channel(reds, channel);
 
     // TODO: handle seemless migration. Temp, setting migrate to FALSE
-    worker->display_channel = display_channel_new(reds, qxl, &worker->core, FALSE,
-                                                  reds_get_streaming_video(reds),
-                                                  reds_get_video_codecs(reds),
-                                                  init_info.n_surfaces);
+    worker->display_channel =
+        display_channel_new(reds, qxl, &worker->core, FALSE, reds_get_streaming_video(reds),
+                            reds_get_video_codecs(reds), init_info.n_surfaces);
     channel = RED_CHANNEL(worker->display_channel);
     red_channel_init_stat_node(channel, &worker->stat, "display_channel");
     red_channel_register_client_cbs(channel, client_display_cbs, dispatcher);
@@ -1371,13 +1271,13 @@ static void *red_worker_main(void *arg)
 #endif
     spice_debug("begin");
     SPICE_VERIFY(MAX_PIPE_SIZE > WIDE_CLIENT_ACK_WINDOW &&
-           MAX_PIPE_SIZE > NARROW_CLIENT_ACK_WINDOW); //ensure wakeup by ack message
+                 MAX_PIPE_SIZE > NARROW_CLIENT_ACK_WINDOW); // ensure wakeup by ack message
 
     red_channel_reset_thread_id(RED_CHANNEL(worker->cursor_channel));
     red_channel_reset_thread_id(RED_CHANNEL(worker->display_channel));
 
     GMainLoop *loop = g_main_loop_new(worker->core.main_context, FALSE);
-    worker->loop = loop;
+    worker->loop    = loop;
     g_main_loop_run(loop);
     g_main_loop_unref(loop);
     worker->loop = NULL;
@@ -1389,7 +1289,7 @@ bool red_worker_run(RedWorker *worker)
 {
     sigset_t thread_sig_mask;
     sigset_t curr_sig_mask;
-    int r;
+    int      r;
 
     spice_return_val_if_fail(worker, FALSE);
     spice_return_val_if_fail(!worker->thread, FALSE);

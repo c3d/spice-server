@@ -18,34 +18,36 @@
 #include <config.h>
 #endif
 
-#include <glib.h>
+#include "glz-encoder-priv.h"
+#include "glz-encoder.h"
 #include <pthread.h>
 #include <stdio.h>
-#include "glz-encoder.h"
-#include "glz-encoder-priv.h"
+#include <glib.h>
 
-
-/* Holds a specific data for one encoder, and data that is relevant for the current image encoded */
-typedef struct Encoder {
+/* Holds a specific data for one encoder, and data that is relevant for the
+ * current image encoded */
+typedef struct Encoder
+{
     GlzEncoderUsrContext *usr;
-    uint8_t id;
-    SharedDictionary     *dict;
+    uint8_t               id;
+    SharedDictionary *    dict;
 
-    struct {
+    struct
+    {
         LzImageType type;
-        uint32_t id;
-        uint32_t first_win_seg;
+        uint32_t    id;
+        uint32_t    first_win_seg;
     } cur_image;
 
-    struct {
-        uint8_t            *start;
-        uint8_t            *now;
-        uint8_t            *end;
-        size_t bytes_count;
-        uint8_t            *last_copy;  // pointer to the last byte in which copy count was written
+    struct
+    {
+        uint8_t *start;
+        uint8_t *now;
+        uint8_t *end;
+        size_t   bytes_count;
+        uint8_t *last_copy; // pointer to the last byte in which copy count was written
     } io;
 } Encoder;
-
 
 /**************************************************************************
 * Handling writing the encoded image to the output buffer
@@ -53,7 +55,7 @@ typedef struct Encoder {
 static inline int more_io_bytes(Encoder *encoder)
 {
     uint8_t *io_ptr;
-    int num_io_bytes = encoder->usr->more_space(encoder->usr, &io_ptr);
+    int      num_io_bytes = encoder->usr->more_space(encoder->usr, &io_ptr);
     encoder->io.bytes_count += num_io_bytes;
     encoder->io.now = io_ptr;
     encoder->io.end = encoder->io.now + num_io_bytes;
@@ -104,7 +106,8 @@ static inline void compress_output_prev(Encoder *encoder)
 {
     // io_now cannot be the first byte of the buffer
     encoder->io.now--;
-    // the function should be called only when copy count is written unnecessarily by glz_compress
+    // the function should be called only when copy count is written unnecessarily
+    // by glz_compress
     GLZ_ASSERT(encoder->usr, encoder->io.now == encoder->io.last_copy)
 }
 
@@ -112,10 +115,10 @@ static bool encoder_reset(Encoder *encoder, uint8_t *io_ptr, uint8_t *io_ptr_end
 {
     GLZ_ASSERT(encoder->usr, io_ptr <= io_ptr_end);
     encoder->io.bytes_count = io_ptr_end - io_ptr;
-    encoder->io.start = io_ptr;
-    encoder->io.now = io_ptr;
-    encoder->io.end = io_ptr_end;
-    encoder->io.last_copy = NULL;
+    encoder->io.start       = io_ptr;
+    encoder->io.now         = io_ptr;
+    encoder->io.end         = io_ptr_end;
+    encoder->io.last_copy   = NULL;
 
     return TRUE;
 }
@@ -124,13 +127,13 @@ static bool encoder_reset(Encoder *encoder, uint8_t *io_ptr, uint8_t *io_ptr_end
 *           Encoding
 ***********************************************************/
 
-GlzEncoderContext *glz_encoder_create(uint8_t id, GlzEncDictContext *dictionary,
-                                      GlzEncoderUsrContext *usr)
+GlzEncoderContext *
+glz_encoder_create(uint8_t id, GlzEncDictContext *dictionary, GlzEncoderUsrContext *usr)
 {
     Encoder *encoder;
 
-    if (!usr || !usr->error || !usr->warn || !usr->info || !usr->malloc ||
-        !usr->free || !usr->more_space) {
+    if (!usr || !usr->error || !usr->warn || !usr->info || !usr->malloc || !usr->free ||
+        !usr->more_space) {
         return NULL;
     }
 
@@ -138,8 +141,8 @@ GlzEncoderContext *glz_encoder_create(uint8_t id, GlzEncDictContext *dictionary,
         return NULL;
     }
 
-    encoder->id = id;
-    encoder->usr = usr;
+    encoder->id   = id;
+    encoder->usr  = usr;
     encoder->dict = (SharedDictionary *)dictionary;
 
     return (GlzEncoderContext *)encoder;
@@ -167,21 +170,23 @@ void glz_encoder_destroy(GlzEncoderContext *opaque_encoder)
 #define LZ_UNEXPECT_CONDITIONAL(c) (c)
 #endif
 
-
 typedef uint8_t BYTE;
 
-typedef struct __attribute__ ((__packed__)) one_byte_pixel_t {
+typedef struct __attribute__((__packed__)) one_byte_pixel_t
+{
     BYTE a;
 } one_byte_pixel_t;
 
-typedef struct __attribute__ ((__packed__)) rgb32_pixel_t {
+typedef struct __attribute__((__packed__)) rgb32_pixel_t
+{
     BYTE b;
     BYTE g;
     BYTE r;
     BYTE pad;
 } rgb32_pixel_t;
 
-typedef struct __attribute__ ((__packed__)) rgb24_pixel_t {
+typedef struct __attribute__((__packed__)) rgb24_pixel_t
+{
     BYTE b;
     BYTE g;
     BYTE r;
@@ -193,14 +198,12 @@ typedef uint16_t rgb16_pixel_t;
 #define LIMIT_OFFSET 6
 #define MIN_FILE_SIZE 4
 
-#define MAX_PIXEL_SHORT_DISTANCE 4096       // (1 << 12)
-#define MAX_PIXEL_MEDIUM_DISTANCE 131072    // (1 << 17)  2 ^ (12 + 5)
-#define MAX_PIXEL_LONG_DISTANCE 33554432    // (1 << 25)  2 ^ (12 + 5 + 8)
-#define MAX_IMAGE_DIST 16777215             // (1 << 24 - 1)
-
+#define MAX_PIXEL_SHORT_DISTANCE 4096    // (1 << 12)
+#define MAX_PIXEL_MEDIUM_DISTANCE 131072 // (1 << 17)  2 ^ (12 + 5)
+#define MAX_PIXEL_LONG_DISTANCE 33554432 // (1 << 25)  2 ^ (12 + 5 + 8)
+#define MAX_IMAGE_DIST 16777215          // (1 << 24 - 1)
 
 //#define DEBUG_ENCODE
-
 
 #define GLZ_ENCODE_SIZE
 #include "glz-encode-match.tmpl.c"
@@ -222,22 +225,28 @@ typedef uint16_t rgb16_pixel_t;
 #define LZ_RGB_ALPHA
 #include "glz-encode.tmpl.c"
 
-
-int glz_encode(GlzEncoderContext *opaque_encoder,
-               LzImageType type, int width, int height, int top_down,
-               uint8_t *lines, unsigned int num_lines, int stride,
-               uint8_t *io_ptr, unsigned int num_io_bytes,
-               GlzUsrImageContext *usr_context, GlzEncDictImageContext **o_enc_dict_context)
+int glz_encode(GlzEncoderContext *      opaque_encoder,
+               LzImageType              type,
+               int                      width,
+               int                      height,
+               int                      top_down,
+               uint8_t *                lines,
+               unsigned int             num_lines,
+               int                      stride,
+               uint8_t *                io_ptr,
+               unsigned int             num_io_bytes,
+               GlzUsrImageContext *     usr_context,
+               GlzEncDictImageContext **o_enc_dict_context)
 {
-    Encoder *encoder = (Encoder *)opaque_encoder;
+    Encoder *    encoder = (Encoder *)opaque_encoder;
     WindowImage *dict_image;
-    uint8_t *io_ptr_end = io_ptr + num_io_bytes;
-    uint32_t win_head_image_dist;
+    uint8_t *    io_ptr_end = io_ptr + num_io_bytes;
+    uint32_t     win_head_image_dist;
 
     if (IS_IMAGE_TYPE_PLT[type]) {
         if (stride > (width / PLT_PIXELS_PER_BYTE[type])) {
-            if (((width % PLT_PIXELS_PER_BYTE[type]) == 0) || (
-                    (stride - (width / PLT_PIXELS_PER_BYTE[type])) > 1)) {
+            if (((width % PLT_PIXELS_PER_BYTE[type]) == 0) ||
+                ((stride - (width / PLT_PIXELS_PER_BYTE[type])) > 1)) {
                 encoder->usr->error(encoder->usr, "stride overflows (plt)\n");
             }
         }
@@ -253,13 +262,13 @@ int glz_encode(GlzEncoderContext *opaque_encoder,
     }
 
     // first read the list of the image segments into the dictionary window
-    dict_image = glz_dictionary_pre_encode(encoder->id, encoder->usr,
-                                           encoder->dict, type, width, height, stride,
-                                           lines, num_lines, usr_context, &win_head_image_dist);
+    dict_image =
+        glz_dictionary_pre_encode(encoder->id, encoder->usr, encoder->dict, type, width, height,
+                                  stride, lines, num_lines, usr_context, &win_head_image_dist);
     *o_enc_dict_context = (GlzEncDictImageContext *)dict_image;
 
-    encoder->cur_image.type = type;
-    encoder->cur_image.id = dict_image->id;
+    encoder->cur_image.type          = type;
+    encoder->cur_image.id            = dict_image->id;
     encoder->cur_image.first_win_seg = dict_image->first_seg;
 
     encode_32(encoder, GUINT32_TO_LE(LZ_MAGIC));

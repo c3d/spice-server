@@ -19,16 +19,16 @@
 #include <config.h>
 #endif
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <stdbool.h>
-#include <string.h>
-#include <sys/types.h>
-#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
+#include <stdbool.h>
+#include <string.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 
 #include <common/log.h>
 
@@ -79,8 +79,7 @@ bool red_socket_set_no_delay(int fd, bool no_delay)
 {
     int optval = no_delay;
 
-    if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
-                   &optval, sizeof(optval)) != 0) {
+    if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &optval, sizeof(optval)) != 0) {
         if (errno != ENOTSUP && errno != ENOPROTOOPT) {
             spice_warning("setsockopt failed, %s", strerror(errno));
             return false;
@@ -128,13 +127,12 @@ bool red_socket_set_non_blocking(int fd, bool non_blocking)
  */
 int red_socket_get_no_delay(int fd)
 {
-    int delay_val;
+    int       delay_val;
     socklen_t opt_size = sizeof(delay_val);
 
-    if (getsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &delay_val,
-                   &opt_size) == -1) {
-            spice_warning("getsockopt failed, %s", strerror(errno));
-            return -1;
+    if (getsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &delay_val, &opt_size) == -1) {
+        spice_warning("getsockopt failed, %s", strerror(errno));
+        return -1;
     }
 
     return delay_val;

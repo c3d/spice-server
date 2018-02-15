@@ -24,17 +24,18 @@
 #include "red-common.h"
 #include "zlib-encoder.h"
 
-struct ZlibEncoder {
+struct ZlibEncoder
+{
     ZlibEncoderUsrContext *usr;
 
     z_stream strm;
-    int last_level;
+    int      last_level;
 };
 
-ZlibEncoder* zlib_encoder_create(ZlibEncoderUsrContext *usr, int level)
+ZlibEncoder *zlib_encoder_create(ZlibEncoderUsrContext *usr, int level)
 {
     ZlibEncoder *enc;
-    int z_ret;
+    int          z_ret;
 
     if (!usr->more_space || !usr->more_input) {
         return NULL;
@@ -45,10 +46,10 @@ ZlibEncoder* zlib_encoder_create(ZlibEncoderUsrContext *usr, int level)
     enc->usr = usr;
 
     enc->strm.zalloc = Z_NULL;
-    enc->strm.zfree = Z_NULL;
+    enc->strm.zfree  = Z_NULL;
     enc->strm.opaque = Z_NULL;
 
-    z_ret = deflateInit(&enc->strm, level);
+    z_ret           = deflateInit(&enc->strm, level);
     enc->last_level = level;
     if (z_ret != Z_OK) {
         spice_printerr("zlib error");
@@ -66,8 +67,8 @@ void zlib_encoder_destroy(ZlibEncoder *encoder)
 }
 
 /* returns the total size of the encoded data */
-int zlib_encode(ZlibEncoder *zlib, int level, int input_size,
-                uint8_t *io_ptr, unsigned int num_io_bytes)
+int zlib_encode(
+    ZlibEncoder *zlib, int level, int input_size, uint8_t *io_ptr, unsigned int num_io_bytes)
 {
     int flush;
     int enc_size = 0;
@@ -80,7 +81,7 @@ int zlib_encode(ZlibEncoder *zlib, int level, int input_size,
         spice_error("deflateReset failed");
     }
 
-    zlib->strm.next_out = io_ptr;
+    zlib->strm.next_out  = io_ptr;
     zlib->strm.avail_out = num_io_bytes;
 
     if (level != zlib->last_level) {
@@ -97,17 +98,16 @@ int zlib_encode(ZlibEncoder *zlib, int level, int input_size,
         zlib->last_level = level;
     }
 
-
     do {
         zlib->strm.avail_in = zlib->usr->more_input(zlib->usr, &zlib->strm.next_in);
         if (zlib->strm.avail_in <= 0) {
             spice_error("more input failed");
         }
         enc_size += zlib->strm.avail_in;
-        flush = (enc_size == input_size) ?  Z_FINISH : Z_NO_FLUSH;
+        flush = (enc_size == input_size) ? Z_FINISH : Z_NO_FLUSH;
         while (1) {
             int deflate_size = zlib->strm.avail_out;
-            z_ret = deflate(&zlib->strm, flush);
+            z_ret            = deflate(&zlib->strm, flush);
             spice_assert(z_ret != Z_STREAM_ERROR);
             out_size += deflate_size - zlib->strm.avail_out;
             if (zlib->strm.avail_out) {

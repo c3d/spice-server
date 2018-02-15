@@ -30,19 +30,21 @@
 #define SPICE_INTERFACE_KEYBOARD_MAJOR 1
 #define SPICE_INTERFACE_KEYBOARD_MINOR 1
 typedef struct SpiceKbdInterface SpiceKbdInterface;
-typedef struct SpiceKbdInstance SpiceKbdInstance;
-typedef struct SpiceKbdState SpiceKbdState;
+typedef struct SpiceKbdInstance  SpiceKbdInstance;
+typedef struct SpiceKbdState     SpiceKbdState;
 
-struct SpiceKbdInterface {
+struct SpiceKbdInterface
+{
     SpiceBaseInterface base;
 
     void (*push_scan_freg)(SpiceKbdInstance *sin, uint8_t frag);
     uint8_t (*get_leds)(SpiceKbdInstance *sin);
 };
 
-struct SpiceKbdInstance {
+struct SpiceKbdInstance
+{
     SpiceBaseInstance base;
-    SpiceKbdState     *st;
+    SpiceKbdState *   st;
 };
 
 int spice_server_kbd_leds(SpiceKbdInstance *sin, int leds);
@@ -51,41 +53,44 @@ int spice_server_kbd_leds(SpiceKbdInstance *sin, int leds);
 #define SPICE_INTERFACE_MOUSE_MAJOR 1
 #define SPICE_INTERFACE_MOUSE_MINOR 1
 typedef struct SpiceMouseInterface SpiceMouseInterface;
-typedef struct SpiceMouseInstance SpiceMouseInstance;
-typedef struct SpiceMouseState SpiceMouseState;
+typedef struct SpiceMouseInstance  SpiceMouseInstance;
+typedef struct SpiceMouseState     SpiceMouseState;
 
-struct SpiceMouseInterface {
+struct SpiceMouseInterface
+{
     SpiceBaseInterface base;
 
-    void (*motion)(SpiceMouseInstance *sin, int dx, int dy, int dz,
-                   uint32_t buttons_state);
+    void (*motion)(SpiceMouseInstance *sin, int dx, int dy, int dz, uint32_t buttons_state);
     void (*buttons)(SpiceMouseInstance *sin, uint32_t buttons_state);
 };
 
-struct SpiceMouseInstance {
+struct SpiceMouseInstance
+{
     SpiceBaseInstance base;
-    SpiceMouseState   *st;
+    SpiceMouseState * st;
 };
 
 #define SPICE_INTERFACE_TABLET "tablet"
 #define SPICE_INTERFACE_TABLET_MAJOR 1
 #define SPICE_INTERFACE_TABLET_MINOR 1
 typedef struct SpiceTabletInterface SpiceTabletInterface;
-typedef struct SpiceTabletInstance SpiceTabletInstance;
-typedef struct SpiceTabletState SpiceTabletState;
+typedef struct SpiceTabletInstance  SpiceTabletInstance;
+typedef struct SpiceTabletState     SpiceTabletState;
 
-struct SpiceTabletInterface {
+struct SpiceTabletInterface
+{
     SpiceBaseInterface base;
 
-    void (*set_logical_size)(SpiceTabletInstance* tablet, int width, int height);
-    void (*position)(SpiceTabletInstance* tablet, int x, int y, uint32_t buttons_state);
-    void (*wheel)(SpiceTabletInstance* tablet, int wheel_moution, uint32_t buttons_state);
-    void (*buttons)(SpiceTabletInstance* tablet, uint32_t buttons_state);
+    void (*set_logical_size)(SpiceTabletInstance *tablet, int width, int height);
+    void (*position)(SpiceTabletInstance *tablet, int x, int y, uint32_t buttons_state);
+    void (*wheel)(SpiceTabletInstance *tablet, int wheel_moution, uint32_t buttons_state);
+    void (*buttons)(SpiceTabletInstance *tablet, uint32_t buttons_state);
 };
 
-struct SpiceTabletInstance {
+struct SpiceTabletInstance
+{
     SpiceBaseInstance base;
-    SpiceTabletState  *st;
+    SpiceTabletState *st;
 };
 
 #endif /* SPICE_INPUT_H_ */

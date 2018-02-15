@@ -17,5 +17,5 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
-#include <common/sw_canvas.h>
 #include <common/sw_canvas.c>
+#include <common/sw_canvas.h>

@@ -20,15 +20,15 @@
 
 #define SPICE_H_INSIDE
 
-#include "spice-version.h"
-#include "spice-core.h"
-#include "spice-server.h"
-#include "spice-qxl.h"
-#include "spice-input.h"
 #include "spice-audio.h"
 #include "spice-char.h"
+#include "spice-core.h"
+#include "spice-input.h"
 #include "spice-migration.h"
+#include "spice-qxl.h"
 #include "spice-replay.h"
+#include "spice-server.h"
+#include "spice-version.h"
 
 #undef SPICE_H_INSIDE
 

@@ -30,14 +30,15 @@
 #define SPICE_INTERFACE_CHAR_DEVICE_MAJOR 1
 #define SPICE_INTERFACE_CHAR_DEVICE_MINOR 3
 typedef struct SpiceCharDeviceInterface SpiceCharDeviceInterface;
-typedef struct SpiceCharDeviceInstance SpiceCharDeviceInstance;
-typedef struct SpiceCharDeviceState SpiceCharDeviceState;
+typedef struct SpiceCharDeviceInstance  SpiceCharDeviceInstance;
+typedef struct SpiceCharDeviceState     SpiceCharDeviceState;
 
 typedef enum {
     SPICE_CHAR_DEVICE_NOTIFY_WRITABLE = 1 << 0,
 } spice_char_device_flags;
 
-struct SpiceCharDeviceInterface {
+struct SpiceCharDeviceInterface
+{
     SpiceBaseInterface base;
 
     void (*state)(SpiceCharDeviceInstance *sin, int connected);
@@ -47,16 +48,17 @@ struct SpiceCharDeviceInterface {
     spice_char_device_flags flags;
 };
 
-struct SpiceCharDeviceInstance {
-    SpiceBaseInstance base;
-    const char* subtype;
+struct SpiceCharDeviceInstance
+{
+    SpiceBaseInstance     base;
+    const char *          subtype;
     SpiceCharDeviceState *st;
-    const char* portname;
+    const char *          portname;
 };
 
 void spice_server_char_device_wakeup(SpiceCharDeviceInstance *sin);
 void spice_server_port_event(SpiceCharDeviceInstance *char_device, uint8_t event);
 /* TODO change return to const char *const * when API break */
-const char** spice_server_char_device_recognized_subtypes(void);
+const char **spice_server_char_device_recognized_subtypes(void);
 
 #endif /* SPICE_CHAR_H_ */

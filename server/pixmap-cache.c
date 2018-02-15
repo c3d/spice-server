@@ -43,7 +43,7 @@ void pixmap_cache_clear(PixmapCache *cache)
     if (cache->frozen) {
         cache->lru.next = cache->frozen_head;
         cache->lru.prev = cache->frozen_tail;
-        cache->frozen = FALSE;
+        cache->frozen   = FALSE;
     }
 
     SPICE_VERIFY(SPICE_OFFSETOF(NewCacheItem, lru_link) == 0);
@@ -54,7 +54,7 @@ void pixmap_cache_clear(PixmapCache *cache)
     memset(cache->hash_table, 0, sizeof(*cache->hash_table) * BITS_CACHE_HASH_SIZE);
 
     cache->available = cache->size;
-    cache->items = 0;
+    cache->items     = 0;
 }
 
 bool pixmap_cache_freeze(PixmapCache *cache)
@@ -71,7 +71,7 @@ bool pixmap_cache_freeze(PixmapCache *cache)
     ring_init(&cache->lru);
     memset(cache->hash_table, 0, sizeof(*cache->hash_table) * BITS_CACHE_HASH_SIZE);
     cache->available = -1;
-    cache->frozen = TRUE;
+    cache->frozen    = TRUE;
 
     pthread_mutex_unlock(&cache->lock);
     return TRUE;
@@ -86,9 +86,8 @@ static void pixmap_cache_destroy(PixmapCache *cache)
     pthread_mutex_unlock(&cache->lock);
 }
 
-
-static pthread_mutex_t cache_lock = PTHREAD_MUTEX_INITIALIZER;
-static Ring pixmap_cache_list = {&pixmap_cache_list, &pixmap_cache_list};
+static pthread_mutex_t cache_lock        = PTHREAD_MUTEX_INITIALIZER;
+static Ring            pixmap_cache_list = {&pixmap_cache_list, &pixmap_cache_list};
 
 static PixmapCache *pixmap_cache_new(RedClient *client, uint8_t id, int64_t size)
 {
@@ -96,12 +95,12 @@ static PixmapCache *pixmap_cache_new(RedClient *client, uint8_t id, int64_t size
 
     ring_item_init(&cache->base);
     pthread_mutex_init(&cache->lock, NULL);
-    cache->id = id;
+    cache->id   = id;
     cache->refs = 1;
     ring_init(&cache->lru);
     cache->available = size;
-    cache->size = size;
-    cache->client = client;
+    cache->size      = size;
+    cache->client    = client;
 
     return cache;
 }
@@ -109,7 +108,7 @@ static PixmapCache *pixmap_cache_new(RedClient *client, uint8_t id, int64_t size
 PixmapCache *pixmap_cache_get(RedClient *client, uint8_t id, int64_t size)
 {
     PixmapCache *ret = NULL;
-    RingItem *now;
+    RingItem *   now;
     pthread_mutex_lock(&cache_lock);
 
     now = &pixmap_cache_list;
@@ -128,7 +127,6 @@ PixmapCache *pixmap_cache_get(RedClient *client, uint8_t id, int64_t size)
     pthread_mutex_unlock(&cache_lock);
     return ret;
 }
-
 
 void pixmap_cache_unref(PixmapCache *cache)
 {

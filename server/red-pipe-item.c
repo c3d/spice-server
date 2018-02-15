@@ -38,12 +38,10 @@ void red_pipe_item_unref(RedPipeItem *item)
     }
 }
 
-void red_pipe_item_init_full(RedPipeItem *item,
-                             gint type,
-                             red_pipe_item_free_t *free_func)
+void red_pipe_item_init_full(RedPipeItem *item, gint type, red_pipe_item_free_t *free_func)
 {
-    item->type = type;
-    item->refcount = 1;
+    item->type      = type;
+    item->refcount  = 1;
     item->free_func = free_func ? free_func : (red_pipe_item_free_t *)g_free;
 }
 

@@ -18,9 +18,9 @@
 #ifdef HAVE_CONFIG_H
 #include <config.h>
 #endif
+#include "display-channel.h"
 #include "image-cache.h"
 #include "red-parse-qxl.h"
-#include "display-channel.h"
 
 static ImageCacheItem *image_cache_find(ImageCache *cache, uint64_t id)
 {
@@ -74,7 +74,7 @@ static void image_cache_remove(ImageCache *cache, ImageCacheItem *item)
 
 static void image_cache_put(SpiceImageCache *spice_cache, uint64_t id, pixman_image_t *image)
 {
-    ImageCache *cache = SPICE_UPCAST(ImageCache, spice_cache);
+    ImageCache *    cache = SPICE_UPCAST(ImageCache, spice_cache);
     ImageCacheItem *item;
 
 #ifndef IMAGE_CACHE_AGE
@@ -86,7 +86,7 @@ static void image_cache_put(SpiceImageCache *spice_cache, uint64_t id, pixman_im
     }
 #endif
 
-    item = g_new(ImageCacheItem, 1);
+    item     = g_new(ImageCacheItem, 1);
     item->id = id;
 #ifdef IMAGE_CACHE_AGE
     item->age = cache->age;
@@ -116,8 +116,7 @@ static pixman_image_t *image_cache_get(SpiceImageCache *spice_cache, uint64_t id
 void image_cache_init(ImageCache *cache)
 {
     static const SpiceImageCacheOps image_cache_ops = {
-        image_cache_put,
-        image_cache_get,
+        image_cache_put, image_cache_get,
     };
 
     cache->base.ops = &image_cache_ops;
@@ -159,8 +158,10 @@ void image_cache_aging(ImageCache *cache)
 #endif
 }
 
-void image_cache_localize(ImageCache *cache, SpiceImage **image_ptr,
-                          SpiceImage *image_store, Drawable *drawable)
+void image_cache_localize(ImageCache * cache,
+                          SpiceImage **image_ptr,
+                          SpiceImage * image_store,
+                          Drawable *   drawable)
 {
     SpiceImage *image = *image_ptr;
 
@@ -172,18 +173,18 @@ void image_cache_localize(ImageCache *cache, SpiceImage **image_ptr,
     }
 
     if (image_cache_hit(cache, image->descriptor.id)) {
-        image_store->descriptor = image->descriptor;
-        image_store->descriptor.type = SPICE_IMAGE_TYPE_FROM_CACHE;
+        image_store->descriptor       = image->descriptor;
+        image_store->descriptor.type  = SPICE_IMAGE_TYPE_FROM_CACHE;
         image_store->descriptor.flags = 0;
-        *image_ptr = image_store;
+        *image_ptr                    = image_store;
         return;
     }
 
     switch (image->descriptor.type) {
     case SPICE_IMAGE_TYPE_QUIC: {
         image_store->descriptor = image->descriptor;
-        image_store->u.quic = image->u.quic;
-        *image_ptr = image_store;
+        image_store->u.quic     = image->u.quic;
+        *image_ptr              = image_store;
 #ifdef IMAGE_CACHE_AGE
         image_store->descriptor.flags |= SPICE_IMAGE_FLAGS_CACHE_ME;
 #else

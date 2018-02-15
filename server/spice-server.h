@@ -36,7 +36,7 @@ typedef enum {
 spice_compat_version_t spice_get_current_compat_version(void);
 
 typedef struct RedsState SpiceServer;
-SpiceServer *spice_server_new(void);
+SpiceServer *            spice_server_new(void);
 int spice_server_init(SpiceServer *s, SpiceCoreInterface *core);
 void spice_server_destroy(SpiceServer *s);
 
@@ -44,8 +44,7 @@ void spice_server_destroy(SpiceServer *s);
 #define SPICE_ADDR_FLAG_IPV6_ONLY (1 << 1)
 #define SPICE_ADDR_FLAG_UNIX_ONLY (1 << 2)
 
-int spice_server_set_compat_version(SpiceServer *s,
-                                    spice_compat_version_t version);
+int spice_server_set_compat_version(SpiceServer *s, spice_compat_version_t version);
 int spice_server_set_port(SpiceServer *s, int port);
 void spice_server_set_addr(SpiceServer *s, const char *addr, int flags);
 int spice_server_set_listen_socket_fd(SpiceServer *s, int listen_fd) SPICE_GNUC_DEPRECATED;
@@ -53,18 +52,24 @@ int spice_server_set_exit_on_disconnect(SpiceServer *s, int flag);
 int spice_server_set_noauth(SpiceServer *s);
 int spice_server_set_sasl(SpiceServer *s, int enabled);
 int spice_server_set_sasl_appname(SpiceServer *s, const char *appname);
-int spice_server_set_ticket(SpiceServer *s, const char *passwd, int lifetime,
-                            int fail_if_connected, int disconnect_if_connected);
-int spice_server_set_tls(SpiceServer *s, int port,
-                         const char *ca_cert_file, const char *certs_file,
-                         const char *private_key_file, const char *key_passwd,
-                         const char *dh_key_file, const char *ciphersuite);
+int spice_server_set_ticket(SpiceServer *s,
+                            const char * passwd,
+                            int          lifetime,
+                            int          fail_if_connected,
+                            int          disconnect_if_connected);
+int spice_server_set_tls(SpiceServer *s,
+                         int          port,
+                         const char * ca_cert_file,
+                         const char * certs_file,
+                         const char * private_key_file,
+                         const char * key_passwd,
+                         const char * dh_key_file,
+                         const char * ciphersuite);
 
 int spice_server_add_client(SpiceServer *s, int socket, int skip_auth);
 int spice_server_add_ssl_client(SpiceServer *s, int socket, int skip_auth);
 
-int spice_server_add_interface(SpiceServer *s,
-                               SpiceBaseInstance *sin);
+int spice_server_add_interface(SpiceServer *s, SpiceBaseInstance *sin);
 /**
  * Remove an interface from SpiceServer.
  * SpiceServer won't be using the interface anymore, so it can
@@ -99,8 +104,7 @@ typedef SpiceImageCompression spice_image_compression_t;
 #define SPICE_IMAGE_COMPRESS_LZ SPICE_IMAGE_COMPRESSION_LZ
 #define SPICE_IMAGE_COMPRESS_LZ4 SPICE_IMAGE_COMPRESSION_LZ4
 
-int spice_server_set_image_compression(SpiceServer *s,
-                                       SpiceImageCompression comp);
+int spice_server_set_image_compression(SpiceServer *s, SpiceImageCompression comp);
 SpiceImageCompression spice_server_get_image_compression(SpiceServer *s);
 
 typedef enum {
@@ -120,7 +124,8 @@ int spice_server_set_channel_security(SpiceServer *s, const char *channel, int s
 
 int spice_server_add_renderer(SpiceServer *s, const char *name) SPICE_GNUC_DEPRECATED;
 
-enum {
+enum
+{
     SPICE_STREAM_VIDEO_INVALID,
     SPICE_STREAM_VIDEO_OFF,
     SPICE_STREAM_VIDEO_ALL,
@@ -129,20 +134,25 @@ enum {
 
 int spice_server_set_streaming_video(SpiceServer *s, int value);
 
-enum {
+enum
+{
     SPICE_STREAMING_INVALID,
     SPICE_STREAMING_SPICE,
     SPICE_STREAMING_GSTREAMER
 };
 
-int spice_server_set_video_codecs(SpiceServer *s, const char* video_codecs);
+int spice_server_set_video_codecs(SpiceServer *s, const char *video_codecs);
 int spice_server_set_playback_compression(SpiceServer *s, int enable);
 int spice_server_set_agent_mouse(SpiceServer *s, int enable);
 int spice_server_set_agent_copypaste(SpiceServer *s, int enable);
 int spice_server_set_agent_file_xfer(SpiceServer *s, int enable);
 
-int spice_server_get_sock_info(SpiceServer *s, struct sockaddr *sa, socklen_t *salen) SPICE_GNUC_DEPRECATED;
-int spice_server_get_peer_info(SpiceServer *s, struct sockaddr *sa, socklen_t *salen) SPICE_GNUC_DEPRECATED;
+int spice_server_get_sock_info(SpiceServer *    s,
+                               struct sockaddr *sa,
+                               socklen_t *      salen) SPICE_GNUC_DEPRECATED;
+int spice_server_get_peer_info(SpiceServer *    s,
+                               struct sockaddr *sa,
+                               socklen_t *      salen) SPICE_GNUC_DEPRECATED;
 
 int spice_server_is_server_mouse(SpiceServer *s);
 

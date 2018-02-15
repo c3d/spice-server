@@ -18,20 +18,18 @@
 #include <config.h>
 #endif
 
-#include <string.h>
 #include <common/macros.h>
+#include <string.h>
 
 #include "red-channel-capabilities.h"
 
 GType red_channel_capabilities_type;
 
-void red_channel_capabilities_init(RedChannelCapabilities *dest,
-                                   const RedChannelCapabilities *caps)
+void red_channel_capabilities_init(RedChannelCapabilities *dest, const RedChannelCapabilities *caps)
 {
     *dest = *caps;
     if (caps->common_caps) {
-        dest->common_caps = g_memdup(caps->common_caps,
-                                     caps->num_common_caps * sizeof(uint32_t));
+        dest->common_caps = g_memdup(caps->common_caps, caps->num_common_caps * sizeof(uint32_t));
     }
     if (caps->num_caps) {
         dest->caps = g_memdup(caps->caps, caps->num_caps * sizeof(uint32_t));
@@ -60,12 +58,11 @@ static void red_channel_capabilities_free(RedChannelCapabilities *caps)
 
 SPICE_CONSTRUCTOR_FUNC(red_channel_capabilities_construct)
 {
-#if !GLIB_CHECK_VERSION(2,36,0)
+#if !GLIB_CHECK_VERSION(2, 36, 0)
     g_type_init();
 #endif
 
-    red_channel_capabilities_type =
-        g_boxed_type_register_static("RedChannelCapabilities",
-                                     (GBoxedCopyFunc) red_channel_capabilities_dup,
-                                     (GBoxedFreeFunc) red_channel_capabilities_free);
+    red_channel_capabilities_type = g_boxed_type_register_static(
+        "RedChannelCapabilities", (GBoxedCopyFunc)red_channel_capabilities_dup,
+        (GBoxedFreeFunc)red_channel_capabilities_free);
 }

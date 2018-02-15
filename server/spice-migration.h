@@ -29,30 +29,33 @@
 #define SPICE_INTERFACE_MIGRATION_MAJOR 1
 #define SPICE_INTERFACE_MIGRATION_MINOR 1
 typedef struct SpiceMigrateInterface SpiceMigrateInterface;
-typedef struct SpiceMigrateInstance SpiceMigrateInstance;
-typedef struct SpiceMigrateState SpiceMigrateState;
+typedef struct SpiceMigrateInstance  SpiceMigrateInstance;
+typedef struct SpiceMigrateState     SpiceMigrateState;
 
-struct SpiceMigrateInterface {
+struct SpiceMigrateInterface
+{
     SpiceBaseInterface base;
     void (*migrate_connect_complete)(SpiceMigrateInstance *sin);
     void (*migrate_end_complete)(SpiceMigrateInstance *sin);
 };
 
-struct SpiceMigrateInstance {
-    SpiceBaseInstance base;
+struct SpiceMigrateInstance
+{
+    SpiceBaseInstance  base;
     SpiceMigrateState *st;
 };
 
 /* spice switch-host client migration */
-int spice_server_migrate_info(SpiceServer *s, const char* dest,
-                              int port, int secure_port,
-                              const char* cert_subject) SPICE_GNUC_DEPRECATED;
+int spice_server_migrate_info(SpiceServer *s,
+                              const char * dest,
+                              int          port,
+                              int          secure_port,
+                              const char * cert_subject) SPICE_GNUC_DEPRECATED;
 int spice_server_migrate_switch(SpiceServer *s) SPICE_GNUC_DEPRECATED;
 
 /* spice (semi-)seamless client migration */
-int spice_server_migrate_connect(SpiceServer *s, const char* dest,
-                                 int port, int secure_port,
-                                 const char* cert_subject);
+int spice_server_migrate_connect(
+    SpiceServer *s, const char *dest, int port, int secure_port, const char *cert_subject);
 int spice_server_migrate_start(SpiceServer *s);
 int spice_server_migrate_end(SpiceServer *s, int completed);
 
