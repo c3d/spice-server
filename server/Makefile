@@ -64,7 +64,7 @@ SOURCES=	$(filter %.c, $(GENERATED))		\
 		stat-file.c				\
 		video-stream.c				\
 		stream-channel.c			\
-		stream-device.c				\
+		red-stream-device.c			\
 		sw-canvas.c				\
 		tree.c					\
 		utils.c					\
@@ -116,11 +116,11 @@ include $(BUILD)rules.mk
 
 prebuild: $(GENERATED)
 
-spice-server-enums.c: spice-server.h spice-server-enums.tmpl.c
-	$(PRINT_GENERATE) glib-mkenums --template spice-server-enums.tmpl.c $< > $@
+spice-server-enums.c: spice-server.h spice-server-enums.c.tmpl
+	$(PRINT_GENERATE) glib-mkenums --template spice-server-enums.c.tmpl $< > $@
 
-spice-server-enums.h: spice-server.h spice-server-enums.tmpl.h
-	$(PRINT_GENERATE) glib-mkenums --template spice-server-enums.tmpl.h $< > $@
+spice-server-enums.h: spice-server.h spice-server-enums.h.tmpl
+	$(PRINT_GENERATE) glib-mkenums --template spice-server-enums.h.tmpl $< > $@
 
 spice-version.h: spice-version.h.in $(MAKEFILE_DEPS)
 	$(PRINT_GENERATE) $(GEN_$@)
