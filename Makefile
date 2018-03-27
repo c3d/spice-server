@@ -1,7 +1,7 @@
 TOP=../
 BUILD=$(TOP)build/
 
-SUBDIRS=	server
+SUBDIRS=	server docs
 
 # Set srcdir which is used by GNUmakefile in this directory
 srcdir=.
