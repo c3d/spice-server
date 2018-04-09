@@ -1,5 +1,4 @@
 TOP=../../
-BUILD=$(TOP)build/
 
 ASCIIDOC=asciidoc
 A2X=a2x
@@ -9,7 +8,7 @@ DOC_FILES=manual.html manual.chunked
 DOC_DIR=$(OBJDIR)manual-chunked/
 TO_CLEAN+=$(DOC_FILES)
 
-include $(BUILD)rules.mk
+include make-it-quick/rules.mk
 
 %.html: %.txt
 	$(PRINT_GENERATE) $(ASCIIDOC) $(ASCIIDOC_FLAGS) -o $@ $<

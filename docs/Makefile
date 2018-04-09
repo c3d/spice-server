@@ -1,5 +1,4 @@
 TOP=../../
-BUILD=$(TOP)build/
 
 ASCIIDOC=asciidoc
 ASCIIDOC_FLAGS=-a icons -a toc
@@ -9,7 +8,7 @@ TO_CLEAN+=$(HTML_FILES)
 
 SUBDIRS=manual
 
-include $(BUILD)rules.mk
+include make-it-quick/rules.mk
 
 build: $(HTML_FILES)
 

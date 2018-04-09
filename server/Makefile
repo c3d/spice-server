@@ -1,16 +1,17 @@
 TOP=../../
-BUILD=$(TOP)build/
 
 PRODUCTS=	spice-server.dll
 SPICE_SERVER_VERSION=\"$(shell ../build-aux/git-version-gen ../.tarball-version)\"
 
-PKGCONFIGS=	pixman-1				\
+PKGCONFIGS=	spice-protocol				\
+		pixman-1				\
 		openssl					\
 		liblz4?					\
 		gobject-2.0				\
 		glib-2.0				\
 		gio-2.0					\
 		zlib					\
+		opus					\
 		libjpeg
 
 CONFIG=		<lz4.h>					\
@@ -82,6 +83,7 @@ DEFINES=	HAVE_CONFIG_H				\
 		$(DEFINES_$(OS_NAME))			\
 		$(EXTRA_CHECKS_$(TARGET))		\
 		VERSION=$(SPICE_SERVER_VERSION)
+
 DEFINES_macosx=	MSG_NOSIGNAL=0
 
 EXTRA_CHECKS_debug=	ENABLE_EXTRA_CHECKS=1
@@ -90,9 +92,7 @@ EXTRA_CHECKS_release=	ENABLE_EXTRA_CHECKS=0
 
 INCLUDES=	.					\
 		$(TOP)protocol				\
-		$(TOP)libs/common			\
-		$(TOP)libs/recorder			\
-		$(TOP)libs
+		../spice-common
 
 PREFIX_HDR=	$(PREFIX)include/spice-server/
 HDR_INSTALL=	spice-audio.h				\
@@ -109,10 +109,7 @@ HDR_INSTALL=	spice-audio.h				\
 
 TO_CLEAN=	$(GENERATED)
 
-LIBRARIES=	$(TOP)/libs/common/spice-common.dll	\
-		$(TOP)/libs/common/spice-common-server.dll
-
-include $(BUILD)rules.mk
+include make-it-quick/rules.mk
 
 prebuild: $(GENERATED)
 
