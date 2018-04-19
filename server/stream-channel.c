@@ -351,6 +351,15 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
 RECORDER_DEFINE(server_stream_metrics, 32, "Metrics received by server from client")
 RECORDER_TWEAK_DEFINE(server_parameter_percent, 10, "Percentage of change caused by input metric");
 
+RECORDER_TWEAK_DEFINE(fps_min, 2, "Minimum number of frames per second for smart streaming");
+RECORDER_TWEAK_DEFINE(fps_max, 60, "Maximum number of frames per second for smart streaming");
+RECORDER_TWEAK_DEFINE(dropped_fps_min, 0, "Minimum number of dropped frames per second considered for smart streaming");
+RECORDER_TWEAK_DEFINE(dropped_fps_max, 120, "Maximum number of dropped frames per second considered for smart streaming");
+RECORDER_TWEAK_DEFINE(bps_min, 100000, "Minimum number of bytes per second for smart streaming");
+RECORDER_TWEAK_DEFINE(bps_max, 32000000, "Maximum number of bytes per second for smart streaming");
+RECORDER_TWEAK_DEFINE(queue_length_min, 0, "Minimum queue length considered by smart streaming");
+RECORDER_TWEAK_DEFINE(queue_length_max, 32000000, "Maximum queue length considered by smart streaming");
+
 static bool handle_stream_metric(RedChannelClient *rcc,
                                  SpiceMsgcDisplayStreamMetric *metric)
 {
@@ -373,7 +382,7 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     uint32_t value = metric->metric_value * metric->metric_duration / 1000;
     uint32_t percent = RECORDER_TWEAK(server_parameter_percent);
 #define METRIC_ADJUST(min, max, x)                                      \
-    if (value >= min && value <= max) {                                 \
+    if (value >= RECORDER_TWEAK(min) && value <= RECORDER_TWEAK(max)) { \
         adjusted_state.x = (  percent        * value                    \
                            + (100 - percent) * adjusted_state.x) / 100; \
     }
@@ -398,19 +407,19 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
     case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
     case SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND:
-        METRIC_ADJUST(2, 60, frames_per_second);
+        METRIC_ADJUST(fps_min, fps_max, frames_per_second);
         break;
     case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
-        METRIC_ADJUST(0, 120, dropped_frames);
+        METRIC_ADJUST(dropped_fps_min, dropped_fps_max, dropped_frames);
         break;
     case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND:
-        METRIC_ADJUST(100000, 32000000, average_bytes_per_second);
+        METRIC_ADJUST(bps_min, bps_max, average_bytes_per_second);
         break;
     case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
-        METRIC_ADJUST(0, 300, decoder_queue_length);
+        METRIC_ADJUST(queue_length_min, queue_length_max, decoder_queue_length);
         break;
 
     default:
