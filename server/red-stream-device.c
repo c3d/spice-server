@@ -102,7 +102,7 @@ stream_device_partial_read(StreamDevice *dev, SpiceCharDeviceInstance *sin)
     bool handled = false;
 
     record(stream_read, "Reading from dev %p sin %p", dev, sin);
-    
+
     sif = spice_char_device_get_interface(sin);
 
     // in order to get in sync every time we open the device we need to discard data here.
@@ -700,6 +700,13 @@ send_capabilities(RedCharDevice *char_dev)
     red_char_device_write_buffer_add(char_dev, buf);
 }
 
+RECORDER_DEFINE(parameter_fps,          8, "Agent request to adjust frames per second");
+RECORDER_DEFINE(parameter_max_bps,      8, "Agent request to adjust max bytes per second");
+RECORDER_DEFINE(parameter_avg_bps,      8, "Agent request to adjust average bytes per second");
+RECORDER_DEFINE(parameter_gop_size,     8, "Agent request to adjust group of picture size");
+RECORDER_DEFINE(parameter_quality,      8, "Agent request to adjust normalized quality");
+RECORDER_DEFINE(parameter_warning,      8, "Agent request for unknown parameter");
+
 static void
 send_parameter_adjust(RedCharDevice *char_dev, uint32_t id, uint32_t value)
 {
@@ -716,6 +723,26 @@ send_parameter_adjust(RedCharDevice *char_dev, uint32_t id, uint32_t value)
     StreamMsgAdjustEncodingParameters *adj = (StreamMsgAdjustEncodingParameters *)(hdr+1);
     adj->parameter_id = id;
     adj->parameter_value = value;
+
+    switch(id) {
+    case STREAM_MSG_PARAMETER_FRAMES_PER_SECOND:
+        record(parameter_fps, "Request FPS=%u", value);
+        break;
+    case STREAM_MSG_PARAMETER_MAX_BYTES_PER_SECOND:
+        record(parameter_max_bps, "Request max BPS=%u", value);
+        break;
+    case STREAM_MSG_PARAMETER_AVERAGE_BYTES_PER_SECOND:
+        record(parameter_avg_bps, "Request avg BPS=%u", value);
+        break;
+    case STREAM_MSG_PARAMETER_GROUP_OF_PICTURE_SIZE:
+        record(parameter_gop_size, "Request group of picture size=%u", value);
+        break;
+    case STREAM_MSG_PARAMETER_QUALITY:
+        record(parameter_quality, "Request normalized quality=%u", value);
+        break;
+    default:
+        record(parameter_warning, "Request unknown parameter %u value %u", id, value);
+    }
 
     red_char_device_write_buffer_add(char_dev, buf);
 }
