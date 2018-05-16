@@ -360,6 +360,13 @@ RECORDER_TWEAK_DEFINE(bps_max, 32000000, "Maximum number of bytes per second for
 RECORDER_TWEAK_DEFINE(queue_length_min, 0, "Minimum queue length considered by smart streaming");
 RECORDER_TWEAK_DEFINE(queue_length_max, 32000000, "Maximum queue length considered by smart streaming");
 
+RECORDER_DEFINE(smstr_fps,              16, "Smart streaming target frames per second")
+RECORDER_DEFINE(smstr_avg_bps,          16, "Smart streaming target average bytes per second")
+RECORDER_DEFINE(smstr_max_bps,          16, "Smart streaming target max bytes per second")
+RECORDER_DEFINE(smstr_quality,          16, "Smart streaming target quality")
+RECORDER_DEFINE(smstr_dropped_frames,   16, "Smart streaming evaluation for dropped frames")
+RECORDER_DEFINE(smstr_queue_length,     16, "Smart streaming evaluation for queue length ")
+
 static bool handle_stream_metric(RedChannelClient *rcc,
                                  SpiceMsgcDisplayStreamMetric *metric)
 {
@@ -408,18 +415,22 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
     case SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND:
         METRIC_ADJUST(fps_min, fps_max, frames_per_second);
+        record(smstr_fps, "Evaluating FPS=%u", adjusted_state.frames_per_second);
         break;
     case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
         METRIC_ADJUST(dropped_fps_min, dropped_fps_max, dropped_frames);
+        record(smstr_dropped_frames, "Evaluating dropped=%u", adjusted_state.dropped_frames);
         break;
     case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND:
         METRIC_ADJUST(bps_min, bps_max, average_bytes_per_second);
+        record(smstr_avg_bps, "Evaluating BPS=%u", adjusted_state.average_bytes_per_second);
         break;
     case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
         METRIC_ADJUST(queue_length_min, queue_length_max, decoder_queue_length);
+        record(smstr_queue_length, "Evaluating queue=%u", adjusted_state.decoder_queue_length);
         break;
 
     default:
