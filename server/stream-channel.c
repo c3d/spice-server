@@ -367,6 +367,16 @@ RECORDER_DEFINE(smstr_quality,          16, "Smart streaming target quality")
 RECORDER_DEFINE(smstr_dropped_frames,   16, "Smart streaming evaluation for dropped frames")
 RECORDER_DEFINE(smstr_queue_length,     16, "Smart streaming evaluation for queue length ")
 
+RECORDER_DEFINE(metric_received_fps,    16, "Incoming metric for received frames per second")
+RECORDER_DEFINE(metric_decoded_fps,     16, "Incoming metric for decoded frames per second")
+RECORDER_DEFINE(metric_displayed_fps,   16, "Incoming metric for displayed frames per second")
+RECORDER_DEFINE(metric_dropped_fps,     16, "Incoming metric for dropped frames per second")
+RECORDER_DEFINE(metric_received_bps,    16, "Incoming metric for received bytes per second")
+RECORDER_DEFINE(metric_decoded_bps,     16, "Incoming metric for decoded bytes per second")
+RECORDER_DEFINE(metric_displayed_bps,   16, "Incoming metric for displayed bytes per second")
+RECORDER_DEFINE(metric_dropped_bps,     16, "Incoming metric for dropped bytes per second")
+RECORDER_DEFINE(metric_queue_length,    16, "Incoming metric for client-side decoder queue length")
+
 static bool handle_stream_metric(RedChannelClient *rcc,
                                  SpiceMsgcDisplayStreamMetric *metric)
 {
@@ -387,6 +397,7 @@ static bool handle_stream_metric(RedChannelClient *rcc,
 
     uint32_t metric_id = metric->metric_id;
     uint32_t value = metric->metric_value * metric->metric_duration / 1000;
+    uint32_t average = metrics->average[metric_id];
     uint32_t percent = RECORDER_TWEAK(server_parameter_percent);
 #define METRIC_ADJUST(min, max, x)                                      \
     if (value >= RECORDER_TWEAK(min) && value <= RECORDER_TWEAK(max)) { \
@@ -409,6 +420,45 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     record(server_stream_metrics, "Received %+s (%u) value %u",
            metric_id < SPICE_MSGC_METRIC_LAST ? metric_name[metric_id] : "Unknown",
            metric_id, value);
+
+    switch(metric_id) {
+    case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
+        record(metric_received_fps, "Received FPS=%u average %u (raw %u in %u ms)",
+               value, average, metric->metric_value, metric->metric_duration);
+        break;
+    case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
+        record(metric_decoded_fps, "Decoded FPS=%u average %u (raw %u in %u ms)",
+               value, average, metric->metric_value, metric->metric_duration);
+        break;
+    case SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND:
+        record(metric_displayed_fps, "Displayed FPS=%u average %u (raw %u in %u ms)",
+               value, average, metric->metric_value, metric->metric_duration);
+        break;
+    case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
+        record(metric_dropped_fps, "Dropped FPS=%u average %u (raw %u in %u ms)",
+               value, average, metric->metric_value, metric->metric_duration);
+        break;
+    case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
+        record(metric_received_bps, "Received BPS=%u average %u (raw %u in %u ms)",
+               value, average, metric->metric_value, metric->metric_duration);
+        break;
+    case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
+        record(metric_decoded_bps, "Decoded BPS=%u average %u (raw %u in %u ms)",
+               value, average, metric->metric_value, metric->metric_duration);
+        break;
+    case SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND:
+        record(metric_displayed_bps, "Displayed BPS=%u average %u (raw %u in %u ms)",
+               value, average, metric->metric_value, metric->metric_duration);
+        break;
+    case SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND:
+        record(metric_dropped_bps, "Dropped BPS=%u average %u (raw %u in %u ms)",
+               value, average, metric->metric_value, metric->metric_duration);
+        break;
+    case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
+        record(metric_queue_length, "Client queue length=%u average %u (raw %u in %u ms)",
+               value, average, metric->metric_value, metric->metric_duration);
+        break;
+    }
 
     switch(metric_id) {
     case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
