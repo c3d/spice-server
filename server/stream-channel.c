@@ -273,6 +273,7 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
         break;
     }
     case RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_REPORT: {
+        RECORD(stream_channel, "Activating reports on stream %d", client->stream_id);
         if (client->stream_id < 0
             || !red_channel_client_test_remote_cap(rcc, SPICE_DISPLAY_CAP_STREAM_REPORT)) {
             return;

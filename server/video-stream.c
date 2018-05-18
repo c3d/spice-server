@@ -727,6 +727,8 @@ static VideoEncoder* dcc_create_video_encoder(DisplayChannelClient *dcc,
     return NULL;
 }
 
+RECORDER_DEFINE(dcc_stream, 32, "DCC stream information");
+
 void dcc_create_stream(DisplayChannelClient *dcc, VideoStream *stream)
 {
     int stream_id = display_channel_get_video_stream_id(DCC_TO_DC(dcc), stream);
@@ -751,6 +753,7 @@ void dcc_create_stream(DisplayChannelClient *dcc, VideoStream *stream)
     agent->video_encoder = dcc_create_video_encoder(dcc, initial_bit_rate, &video_cbs);
     red_channel_client_pipe_add(RED_CHANNEL_CLIENT(dcc), video_stream_create_item_new(agent));
 
+    record(dcc_stream, "Checking stream id %d dcc %p stream %p", stream_id, dcc, stream);
     if (red_channel_client_test_remote_cap(RED_CHANNEL_CLIENT(dcc), SPICE_DISPLAY_CAP_STREAM_REPORT)) {
         RedStreamActivateReportItem *report_pipe_item = g_new0(RedStreamActivateReportItem, 1);
 
@@ -759,6 +762,7 @@ void dcc_create_stream(DisplayChannelClient *dcc, VideoStream *stream)
                            RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_REPORT);
         report_pipe_item->stream_id = stream_id;
         report_pipe_item->report_id = agent->report_id;
+        record(dcc_stream, "Activating report with id %d", agent->report_id);
         red_channel_client_pipe_add(RED_CHANNEL_CLIENT(dcc), &report_pipe_item->base);
     }
 #ifdef STREAM_STATS
