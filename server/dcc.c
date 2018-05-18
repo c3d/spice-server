@@ -1076,6 +1076,9 @@ static bool dcc_handle_stream_report(DisplayChannelClient *dcc,
     return TRUE;
 }
 
+
+RECORDER_DEFINE(server_dcc_metrics, 32, "Metrics received by server from client")
+
 static void dcc_process_metrics(VideoEncoder *encoder,
                                 SpiceMsgcDisplayStreamMetric *metric)
 {
@@ -1084,6 +1087,23 @@ static void dcc_process_metrics(VideoEncoder *encoder,
 
     uint32_t metric_id = metric->metric_id;
     uint32_t value = metric->metric_value * metric->metric_duration / 1000;
+    static char *metric_name[SPICE_MSGC_METRIC_LAST] = {
+        [SPICE_MSGC_METRIC_INVALID]                     = "METRIC_INVALID",
+
+        [SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND]  = "METRIC_FRAMES_RECEIVED_PER_SECOND",
+        [SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND]   = "METRIC_FRAMES_DECODED_PER_SECOND",
+        [SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND] = "METRIC_FRAMES_DISPLAYED_PER_SECOND",
+        [SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND]   = "METRIC_FRAMES_DROPPED_PER_SECOND",
+        [SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND]   = "METRIC_BYTES_RECEIVED_PER_SECOND",
+        [SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND]    = "METRIC_BYTES_DECODED_PER_SECOND",
+        [SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND]  = "METRIC_BYTES_DISPLAYED_PER_SECOND",
+        [SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND]    = "METRIC_BYTES_DROPPED_PER_SECOND",
+        [SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH]        = "METRIC_DECODER_QUEUE_LENGTH",
+    };
+    record(server_dcc_metrics, "Received %+s (%u) value %u",
+           metric_id < SPICE_MSGC_METRIC_LAST ? metric_name[metric_id] : "Unknown",
+           metric_id, value);
+
     switch(metric_id) {
     case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
     case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
@@ -1097,6 +1117,7 @@ static void dcc_process_metrics(VideoEncoder *encoder,
     case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND:
+    case SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND:
         if (value >= 100000 && value <= 16000000) {
             adjusted.max_bytes_per_second = (value + 3 * adjusted.max_bytes_per_second) / 4;
             if (adjusted.average_bytes_per_second > value)
