@@ -67,6 +67,15 @@ GType stream_channel_client_get_type(void) G_GNUC_CONST;
 
 G_DEFINE_TYPE(StreamChannelClient, stream_channel_client, TYPE_COMMON_GRAPHICS_CHANNEL_CLIENT)
 
+typedef struct StreamEncoderParameters {
+    uint32_t frames_per_second;
+    uint32_t average_bytes_per_second;
+    uint32_t max_bytes_per_second;
+    uint32_t quality;
+    uint32_t dropped_frames;
+    uint32_t decoder_queue_length;
+} StreamEncoderParameters;
+
 struct StreamChannel {
     RedChannel parent;
 
@@ -85,6 +94,11 @@ struct StreamChannel {
     /* callback to notify when queue statistics changes */
     stream_channel_queue_stat_proc queue_cb;
     void *queue_opaque;
+
+    /* callback to notify encoder of a parameter change */
+    stream_channel_adjust_proc adjust_cb;
+    void *adjust_opaque;
+    StreamEncoderParameters encoder_parameters;
 };
 
 struct StreamChannelClass {
@@ -334,6 +348,79 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
     red_channel_client_begin_send_message(rcc);
 }
 
+static bool handle_stream_metric(RedChannelClient *rcc,
+                                 SpiceMsgcDisplayStreamMetric *metric)
+{
+    RedChannel *red_channel = red_channel_client_get_channel(rcc);
+    StreamChannel *channel = STREAM_CHANNEL(red_channel);
+    StreamEncoderParameters saved_state = channel->encoder_parameters;
+    StreamEncoderParameters adjusted_state = saved_state;
+
+    if (metric->stream_id != channel->stream_id) {
+        spice_warning("stream_metrics: invalid stream id %u-%u",
+                      metric->stream_id, channel->stream_id);
+        return FALSE;
+    }
+    if (!channel->adjust_cb) {
+        spice_warning("stream_metrics: no adjust callback for stream %u", metric->stream_id);
+        return FALSE;
+    }
+
+    uint32_t metric_id = metric->metric_id;
+    uint32_t value = metric->metric_value * metric->metric_duration / 1000;
+    uint32_t percent = 10;
+#define METRIC_ADJUST(min, max, x)                                      \
+    if (value >= min && value <= max) {                                 \
+        adjusted_state.x = (  percent        * value                    \
+                           + (100 - percent) * adjusted_state.x) / 100; \
+    }
+
+    switch(metric_id) {
+    case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
+    case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
+    case SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND:
+        METRIC_ADJUST(2, 60, frames_per_second);
+        break;
+    case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
+        METRIC_ADJUST(0, 120, dropped_frames);
+        break;
+    case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
+    case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
+    case SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND:
+        METRIC_ADJUST(100000, 32000000, average_bytes_per_second);
+        break;
+    case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
+        METRIC_ADJUST(0, 300, decoder_queue_length);
+        break;
+
+    default:
+        spice_warning("handle_stream_metrics received unknown metric %u", metric->metric_id);
+    }
+
+    if (adjusted_state.frames_per_second != saved_state.frames_per_second) {
+        channel->adjust_cb(channel->adjust_opaque,
+                           STREAM_MSG_PARAMETER_FRAMES_PER_SECOND,
+                           adjusted_state.frames_per_second,
+                           channel);
+    }
+    if (adjusted_state.max_bytes_per_second != saved_state.max_bytes_per_second) {
+        channel->adjust_cb(channel->adjust_opaque,
+                           STREAM_MSG_PARAMETER_MAX_BYTES_PER_SECOND,
+                           adjusted_state.average_bytes_per_second,
+                           channel);
+    }
+    if (adjusted_state.average_bytes_per_second != saved_state.average_bytes_per_second) {
+        channel->adjust_cb(channel->adjust_opaque,
+                           STREAM_MSG_PARAMETER_AVERAGE_BYTES_PER_SECOND,
+                           adjusted_state.average_bytes_per_second,
+                           channel);
+    }
+
+    channel->encoder_parameters = adjusted_state;
+    return TRUE;
+
+}
+
 static bool
 handle_message(RedChannelClient *rcc, uint16_t type, uint32_t size, void *msg)
 {
@@ -344,6 +431,9 @@ handle_message(RedChannelClient *rcc, uint16_t type, uint32_t size, void *msg)
     case SPICE_MSGC_DISPLAY_STREAM_REPORT:
         /* TODO these will help tune the streaming reducing/increasing quality */
         return true;
+    case SPICE_MSGC_DISPLAY_STREAM_METRIC:
+        /* TODO these will help tune the streaming reducing/increasing quality */
+        return handle_stream_metric(rcc, (SpiceMsgcDisplayStreamMetric *)msg);
     case SPICE_MSGC_DISPLAY_GL_DRAW_DONE:
         /* client should not send this message */
         return false;
@@ -608,6 +698,14 @@ stream_channel_register_queue_stat_cb(StreamChannel *channel,
 {
     channel->queue_cb = cb;
     channel->queue_opaque = opaque;
+}
+
+void
+stream_channel_register_adjust_cb(StreamChannel *channel,
+                                  stream_channel_adjust_proc cb, void *opaque)
+{
+    channel->adjust_cb = cb;
+    channel->adjust_opaque = opaque;
 }
 
 void
