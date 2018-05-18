@@ -54,6 +54,15 @@ typedef struct VideoEncoderStats {
     double avg_quality;
 } VideoEncoderStats;
 
+typedef struct VideoEncoderParameters {
+    uint32_t frames_per_second;
+    uint32_t average_bytes_per_second;
+    uint32_t max_bytes_per_second;
+    uint32_t quality;
+    uint32_t dropped_frames;
+    uint32_t decoder_queue_length;
+} VideoEncoderParameters;
+
 typedef struct VideoEncoder VideoEncoder;
 struct VideoEncoder {
     /* Releases the video encoder's resources */
@@ -108,6 +117,22 @@ struct VideoEncoder {
                                  uint32_t start_frame_mm_time,
                                  uint32_t end_frame_mm_time,
                                  int32_t end_frame_delay, uint32_t audio_delay);
+
+    /* When smart streaming is active metrics are periodically obtained from
+     * the client and sent to the server. The server then processes them
+     * and performs adjustents to encoder parameters, which are then
+     * sent using this method. The server can keep track of
+     *
+     * @encoder:       The video encoder.
+     * @parameter_id:  The ID of the parameter to adjust
+     * @parameter:     The value to adjust
+     */
+    void (*client_stream_adjust)(VideoEncoder *encoder,
+                                 uint32_t parameter_id,
+                                 uint32_t parameter);
+
+    /* Storage area for the dynamic adjustment algorithm */
+    VideoEncoderParameters client_stream_parameters;
 
     /* This notifies the video encoder each time a frame is dropped due to
      * pipe congestion.

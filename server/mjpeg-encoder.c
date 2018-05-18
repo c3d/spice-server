@@ -28,6 +28,8 @@
 #include "video-encoder.h"
 #include "utils.h"
 
+#include "spice/stream-device.h"
+
 #define MJPEG_MAX_FPS 25
 #define MJPEG_MIN_FPS 1
 
@@ -1292,6 +1294,27 @@ static void mjpeg_encoder_client_stream_report(VideoEncoder *video_encoder,
     }
 }
 
+static void mjpeg_encoder_client_stream_adjust(VideoEncoder *video_encoder,
+                                               uint32_t parameter_id,
+                                               uint32_t parameter)
+{
+    static int reported = 0;
+    if (!reported++) {
+        switch(parameter_id) {
+        case STREAM_MSG_PARAMETER_FRAMES_PER_SECOND:
+        case STREAM_MSG_PARAMETER_MAX_BYTES_PER_SECOND:
+        case STREAM_MSG_PARAMETER_AVERAGE_BYTES_PER_SECOND:
+        case STREAM_MSG_PARAMETER_GROUP_OF_PICTURE_SIZE:
+        case STREAM_MSG_PARAMETER_QUALITY:
+            spice_warning("MJPEG encoder does not support parameter %u yet", parameter_id);
+            break;
+        default:
+            spice_error("MJPEG encoder received unknown parameter %u", parameter_id);
+            break;
+        }
+    }
+}
+
 static void mjpeg_encoder_notify_server_frame_drop(VideoEncoder *video_encoder)
 {
     MJpegEncoder *encoder = (MJpegEncoder*)video_encoder;
@@ -1361,6 +1384,7 @@ VideoEncoder *mjpeg_encoder_new(SpiceVideoCodecType codec_type,
     encoder->base.destroy = mjpeg_encoder_destroy;
     encoder->base.encode_frame = mjpeg_encoder_encode_frame;
     encoder->base.client_stream_report = mjpeg_encoder_client_stream_report;
+    encoder->base.client_stream_adjust = mjpeg_encoder_client_stream_adjust;
     encoder->base.notify_server_frame_drop = mjpeg_encoder_notify_server_frame_drop;
     encoder->base.get_bit_rate = mjpeg_encoder_get_bit_rate;
     encoder->base.get_stats = mjpeg_encoder_get_stats;

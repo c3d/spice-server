@@ -32,6 +32,7 @@
 #include "red-common.h"
 #include "video-encoder.h"
 #include "utils.h"
+#include "spice/stream-device.h"
 
 
 #define SPICE_GST_DEFAULT_FPS 30
@@ -1565,12 +1566,12 @@ static int spice_gst_encoder_encode_frame(VideoEncoder *video_encoder,
 }
 
 static void spice_gst_encoder_client_stream_report(VideoEncoder *video_encoder,
-                                             uint32_t num_frames,
-                                             uint32_t num_drops,
-                                             uint32_t start_frame_mm_time,
-                                             uint32_t end_frame_mm_time,
-                                             int32_t video_margin,
-                                             uint32_t audio_margin)
+                                                   uint32_t num_frames,
+                                                   uint32_t num_drops,
+                                                   uint32_t start_frame_mm_time,
+                                                   uint32_t end_frame_mm_time,
+                                                   int32_t video_margin,
+                                                   uint32_t audio_margin)
 {
     SpiceGstEncoder *encoder = (SpiceGstEncoder*)video_encoder;
     encoder->has_client_reports = TRUE;
@@ -1581,7 +1582,8 @@ static void spice_gst_encoder_client_stream_report(VideoEncoder *video_encoder,
     encoder->last_video_margin = video_margin;
 
     uint64_t period_bit_rate = get_period_bit_rate(encoder, start_frame_mm_time, end_frame_mm_time);
-    spice_debug("client report: %u/%u drops in %ums margins video %3d/%3d audio %3u/%3u bw %.3f/%.3fMbps%s",
+    spice_debug("client report: %u/%u drops in %ums"
+                " margins video %3d/%3d audio %3u/%3u bw %.3f/%.3fMbps%s",
                 num_drops, num_frames, end_frame_mm_time - start_frame_mm_time,
                 video_margin, encoder->max_video_margin,
                 audio_margin, encoder->max_audio_margin,
@@ -1671,6 +1673,27 @@ static void spice_gst_encoder_client_stream_report(VideoEncoder *video_encoder,
     }
 }
 
+static void spice_gst_encoder_client_stream_adjust(VideoEncoder *video_encoder,
+                                                   uint32_t parameter_id,
+                                                   uint32_t parameter)
+{
+    static int reported = 0;
+    if (!reported++) {
+        switch(parameter_id) {
+        case STREAM_MSG_PARAMETER_FRAMES_PER_SECOND:
+        case STREAM_MSG_PARAMETER_MAX_BYTES_PER_SECOND:
+        case STREAM_MSG_PARAMETER_AVERAGE_BYTES_PER_SECOND:
+        case STREAM_MSG_PARAMETER_GROUP_OF_PICTURE_SIZE:
+        case STREAM_MSG_PARAMETER_QUALITY:
+            spice_warning("MJPEG encoder does not support parameter %u yet", parameter_id);
+            break;
+        default:
+            spice_error("MJPEG encoder received unknown parameter %u", parameter_id);
+            break;
+        }
+    }
+}
+
 static void spice_gst_encoder_notify_server_frame_drop(VideoEncoder *video_encoder)
 {
     SpiceGstEncoder *encoder = (SpiceGstEncoder*)video_encoder;
@@ -1755,6 +1778,7 @@ VideoEncoder *gstreamer_encoder_new(SpiceVideoCodecType codec_type,
     encoder->base.destroy = spice_gst_encoder_destroy;
     encoder->base.encode_frame = spice_gst_encoder_encode_frame;
     encoder->base.client_stream_report = spice_gst_encoder_client_stream_report;
+    encoder->base.client_stream_adjust = spice_gst_encoder_client_stream_adjust;
     encoder->base.notify_server_frame_drop = spice_gst_encoder_notify_server_frame_drop;
     encoder->base.get_bit_rate = spice_gst_encoder_get_bit_rate;
     encoder->base.get_stats = spice_gst_encoder_get_stats;
