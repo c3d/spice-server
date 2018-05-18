@@ -79,6 +79,12 @@ typedef void (*stream_channel_queue_stat_proc)(void *opaque, const StreamQueueSt
 void stream_channel_register_queue_stat_cb(StreamChannel *channel,
                                            stream_channel_queue_stat_proc cb, void *opaque);
 
+typedef void (*stream_channel_adjust_proc)(void *opaque,
+                                           uint32_t parameter_id, uint32_t parameter_value,
+                                           StreamChannel *channel);
+void stream_channel_register_adjust_cb(StreamChannel *channel,
+                                       stream_channel_adjust_proc cb, void *opaque);
+
 G_END_DECLS
 
 #endif /* STREAM_CHANNEL_H_ */

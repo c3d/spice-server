@@ -70,6 +70,8 @@ static StreamMsgHandler handle_msg_format, handle_msg_data, handle_msg_cursor_se
 static bool handle_msg_invalid(StreamDevice *dev, SpiceCharDeviceInstance *sin,
                                const char *error_msg) SPICE_GNUC_WARN_UNUSED_RESULT;
 
+static void send_parameter_adjust(RedCharDevice *char_dev, uint32_t id, uint32_t value);
+
 static void
 close_timer_func(void *opaque)
 {
@@ -565,6 +567,18 @@ stream_device_stream_queue_stat(void *opaque, const StreamQueueStat *stats G_GNU
     }
 }
 
+static void
+stream_device_adjust(void *opaque,
+                     uint32_t id, uint32_t value,
+                     StreamChannel *stream_channel G_GNUC_UNUSED)
+{
+    StreamDevice *dev = (StreamDevice *) opaque;
+    if (!dev->opened) {
+        return;
+    }
+    send_parameter_adjust(&dev->parent, id, value);
+}
+
 StreamDevice *
 stream_device_connect(RedsState *reds, SpiceCharDeviceInstance *sin)
 {
@@ -642,6 +656,7 @@ stream_device_create_channel(StreamDevice *dev)
 
     stream_channel_register_start_cb(stream_channel, stream_device_stream_start, dev);
     stream_channel_register_queue_stat_cb(stream_channel, stream_device_stream_queue_stat, dev);
+    stream_channel_register_adjust_cb(stream_channel, stream_device_adjust, dev);
 }
 
 static void
@@ -680,6 +695,26 @@ send_capabilities(RedCharDevice *char_dev)
 
     StreamMsgCapabilities *const caps = (StreamMsgCapabilities *)(hdr+1);
     memset(caps, 0, msg_size);
+
+    red_char_device_write_buffer_add(char_dev, buf);
+}
+
+static void
+send_parameter_adjust(RedCharDevice *char_dev, uint32_t id, uint32_t value)
+{
+    int msg_size = sizeof(StreamMsgAdjustEncodingParameters);
+    int total_size = sizeof(StreamDevHeader) + msg_size;
+
+    RedCharDeviceWriteBuffer *buf =
+        red_char_device_write_buffer_get_server_no_token(char_dev, total_size);
+    buf->buf_used = total_size;
+
+    StreamDevHeader *const hdr = (StreamDevHeader *)buf->buf;
+    fill_dev_hdr(hdr, STREAM_TYPE_ADJUST_ENCODING_PARAMETERS, msg_size);
+
+    StreamMsgAdjustEncodingParameters *adj = (StreamMsgAdjustEncodingParameters *)(hdr+1);
+    adj->parameter_id = id;
+    adj->parameter_value = value;
 
     red_char_device_write_buffer_add(char_dev, buf);
 }
