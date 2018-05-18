@@ -37,6 +37,7 @@ struct StreamDevice {
         StreamMsgCapabilities capabilities;
         StreamMsgCursorSet cursor_set;
         StreamMsgCursorMove cursor_move;
+        StreamMsgAdjustEncodingParameters adjust_encoding_parameters;
         uint8_t buf[STREAM_MSG_CAPABILITIES_MAX_BYTES];
     } *msg;
     uint32_t msg_pos;

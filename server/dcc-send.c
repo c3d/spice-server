@@ -2334,7 +2334,7 @@ static void marshall_stream_activate_metrics(RedChannelClient *rcc,
     msg.max_window_size = RED_STREAM_CLIENT_METRICS_WINDOW;
     msg.timeout_ms = RED_STREAM_CLIENT_METRICS_TIMEOUT;
     msg.last_known_metric = SPICE_MSGC_METRIC_LAST;
-    spice_marshall_msg_display_stream_activate_report(base_marshaller, &msg);
+    spice_marshall_msg_display_stream_activate_metrics(base_marshaller, &msg);
 }
 
 static void marshall_gl_scanout(RedChannelClient *rcc,

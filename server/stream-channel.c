@@ -318,7 +318,7 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
         msg.max_window_size = RED_STREAM_CLIENT_REPORT_WINDOW;
         msg.timeout_ms = RED_STREAM_CLIENT_REPORT_TIMEOUT;
         msg.last_known_metric = SPICE_MSGC_METRIC_LAST;
-        red_channel_client_init_send_data(rcc, SPICE_MSG_DISPLAY_STREAM_ACTIVATE_REPORT);
+        red_channel_client_init_send_data(rcc, SPICE_MSG_DISPLAY_STREAM_ACTIVATE_METRICS);
         spice_marshall_msg_display_stream_activate_metrics(m, &msg);
         break;
     }

@@ -26,6 +26,7 @@
 #include "main-channel-client.h"
 #include <spice-server-enums.h>
 #include "glib-compat.h"
+#include "spice/stream-device.h"
 
 G_DEFINE_TYPE(DisplayChannelClient, display_channel_client, TYPE_COMMON_GRAPHICS_CHANNEL_CLIENT)
 
@@ -1075,6 +1076,93 @@ static bool dcc_handle_stream_report(DisplayChannelClient *dcc,
     return TRUE;
 }
 
+static void dcc_process_metrics(VideoEncoder *encoder,
+                                SpiceMsgcDisplayStreamMetric *metric)
+{
+    VideoEncoderParameters saved = encoder->client_stream_parameters;
+    VideoEncoderParameters adjusted = saved;
+
+    uint32_t metric_id = metric->metric_id;
+    uint32_t value = metric->metric_value * metric->metric_duration / 1000;
+    switch(metric_id) {
+    case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
+    case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
+    case SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND:
+        if (value >= 2 && value <= 60)
+            adjusted.frames_per_second = (value + 7 * adjusted.frames_per_second) / 8;
+        break;
+    case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
+        adjusted.dropped_frames += value;
+        break;
+    case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
+    case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
+    case SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND:
+        if (value >= 100000 && value <= 16000000) {
+            adjusted.max_bytes_per_second = (value + 3 * adjusted.max_bytes_per_second) / 4;
+            if (adjusted.average_bytes_per_second > value)
+                adjusted.average_bytes_per_second = value;
+        }
+        break;
+    case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
+        adjusted.decoder_queue_length += value;
+        break;
+
+    default:
+        spice_warning("dcc_process_metrics received unknown metric %u", metric->metric_id);
+    }
+
+    if (adjusted.frames_per_second != saved.frames_per_second) {
+        encoder->client_stream_adjust(encoder,
+                                      STREAM_MSG_PARAMETER_FRAMES_PER_SECOND,
+                                      adjusted.frames_per_second);
+    }
+    if (adjusted.max_bytes_per_second != saved.max_bytes_per_second) {
+        encoder->client_stream_adjust(encoder,
+                                      STREAM_MSG_PARAMETER_MAX_BYTES_PER_SECOND,
+                                      adjusted.average_bytes_per_second);
+    }
+    if (adjusted.average_bytes_per_second != saved.average_bytes_per_second) {
+        encoder->client_stream_adjust(encoder,
+                                      STREAM_MSG_PARAMETER_AVERAGE_BYTES_PER_SECOND,
+                                      adjusted.average_bytes_per_second);
+    }
+
+    encoder->client_stream_parameters = adjusted;
+}
+
+static bool dcc_handle_stream_metric(DisplayChannelClient *dcc,
+                                     SpiceMsgcDisplayStreamMetric *metric)
+{
+    VideoStreamAgent *agent;
+    VideoEncoder *encoder;
+
+    if (metric->stream_id >= NUM_STREAMS) {
+        spice_warning("stream_metrics: invalid stream id %u",
+                      metric->stream_id);
+        return FALSE;
+    }
+
+    agent = &dcc->priv->stream_agents[metric->stream_id];
+    encoder = agent->video_encoder;
+    if (!encoder) {
+        spice_debug("stream_metrics: no encoder for stream id %u. "
+                   "The stream has probably been destroyed",
+                   metric->stream_id);
+        return TRUE;
+    }
+
+    if (metric->metrics_unique_id != agent->metrics_id) {
+        spice_warning("stream_metrics: unique id mismatch: local (%u) != msg (%u) "
+                      "The old stream was probably replaced by a new one",
+                      agent->metrics_id, metric->metrics_unique_id);
+        return TRUE;
+    }
+
+    dcc_process_metrics(encoder, metric);
+
+    return TRUE;
+}
+
 static bool dcc_handle_preferred_compression(DisplayChannelClient *dcc,
                                              SpiceMsgcDisplayPreferredCompression *pc)
 {
@@ -1233,6 +1321,8 @@ bool dcc_handle_message(RedChannelClient *rcc, uint16_t type, uint32_t size, voi
         return dcc_handle_init(dcc, (SpiceMsgcDisplayInit *)msg);
     case SPICE_MSGC_DISPLAY_STREAM_REPORT:
         return dcc_handle_stream_report(dcc, (SpiceMsgcDisplayStreamReport *)msg);
+    case SPICE_MSGC_DISPLAY_STREAM_METRIC:
+        return dcc_handle_stream_metric(dcc, (SpiceMsgcDisplayStreamMetric *)msg);
     case SPICE_MSGC_DISPLAY_PREFERRED_COMPRESSION:
         return dcc_handle_preferred_compression(dcc,
             (SpiceMsgcDisplayPreferredCompression *)msg);
