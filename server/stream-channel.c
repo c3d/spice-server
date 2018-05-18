@@ -537,7 +537,7 @@ stream_channel_change_format(StreamChannel *channel, const StreamMsgFormat *fmt)
     red_channel_pipes_add(red_channel, &item->base);
 
     // activate stream report if possible
-    red_channel_pipes_add_type(red_channel, RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_REPORT);
+    red_channel_pipes_add_type(red_channel, RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_METRICS);
 }
 
 static inline void
