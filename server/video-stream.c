@@ -765,6 +765,16 @@ void dcc_create_stream(DisplayChannelClient *dcc, VideoStream *stream)
         record(dcc_stream, "Activating report with id %d", agent->report_id);
         red_channel_client_pipe_add(RED_CHANNEL_CLIENT(dcc), &report_pipe_item->base);
     }
+    if (red_channel_client_test_remote_cap(RED_CHANNEL_CLIENT(dcc), SPICE_DISPLAY_CAP_METRICS)) {
+        RedStreamActivateMetricsItem *metrics_pipe_item = g_new0(RedStreamActivateMetricsItem, 1);
+
+        agent->metrics_id = rand();
+        red_pipe_item_init(&metrics_pipe_item->pipe_item,
+                           RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_REPORT);
+        metrics_pipe_item->stream_id = stream_id;
+        metrics_pipe_item->metrics_id = agent->metrics_id;
+        red_channel_client_pipe_add(RED_CHANNEL_CLIENT(dcc), &metrics_pipe_item->pipe_item);
+    }
 #ifdef STREAM_STATS
     memset(&agent->stats, 0, sizeof(StreamStats));
     if (stream->current) {

@@ -2322,6 +2322,21 @@ static void marshall_stream_activate_report(RedChannelClient *rcc,
     spice_marshall_msg_display_stream_activate_report(base_marshaller, &msg);
 }
 
+static void marshall_stream_activate_metrics(RedChannelClient *rcc,
+                                            SpiceMarshaller *base_marshaller,
+                                            RedStreamActivateMetricsItem *metrics_item)
+{
+    SpiceMsgDisplayStreamActivateMetrics msg;
+
+    red_channel_client_init_send_data(rcc, SPICE_MSG_DISPLAY_STREAM_ACTIVATE_METRICS);
+    msg.stream_id = metrics_item->stream_id;
+    msg.unique_id = metrics_item->metrics_id;
+    msg.max_window_size = RED_STREAM_CLIENT_METRICS_WINDOW;
+    msg.timeout_ms = RED_STREAM_CLIENT_METRICS_TIMEOUT;
+    msg.last_known_metric = SPICE_MSGC_METRIC_LAST;
+    spice_marshall_msg_display_stream_activate_report(base_marshaller, &msg);
+}
+
 static void marshall_gl_scanout(RedChannelClient *rcc,
                                 SpiceMarshaller *m,
                                 RedPipeItem *item)
@@ -2450,6 +2465,13 @@ void dcc_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
         RedStreamActivateReportItem *report_item =
             SPICE_UPCAST(RedStreamActivateReportItem, pipe_item);
         marshall_stream_activate_report(rcc, m, report_item);
+        break;
+    }
+    case RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_METRICS: {
+        RedStreamActivateMetricsItem *metrics_item = SPICE_CONTAINEROF(pipe_item,
+                                                                       RedStreamActivateMetricsItem,
+                                                                       pipe_item);
+        marshall_stream_activate_metrics(rcc, m, metrics_item);
         break;
     }
     case RED_PIPE_ITEM_TYPE_GL_SCANOUT:

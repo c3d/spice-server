@@ -101,6 +101,7 @@ enum {
     RED_PIPE_ITEM_TYPE_STREAM_DATA,
     RED_PIPE_ITEM_TYPE_STREAM_DESTROY,
     RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_REPORT,
+    RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_METRICS,
     RED_PIPE_ITEM_TYPE_MONITORS_CONFIG,
 };
 
@@ -287,6 +288,21 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
         msg.timeout_ms = RED_STREAM_CLIENT_REPORT_TIMEOUT;
         red_channel_client_init_send_data(rcc, SPICE_MSG_DISPLAY_STREAM_ACTIVATE_REPORT);
         spice_marshall_msg_display_stream_activate_report(m, &msg);
+        break;
+    }
+    case RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_METRICS: {
+        if (client->stream_id < 0
+            || !red_channel_client_test_remote_cap(rcc, SPICE_DISPLAY_CAP_METRICS)) {
+            return;
+        }
+        SpiceMsgDisplayStreamActivateMetrics msg;
+        msg.stream_id = client->stream_id;
+        msg.unique_id = 1; // TODO useful ?
+        msg.max_window_size = RED_STREAM_CLIENT_REPORT_WINDOW;
+        msg.timeout_ms = RED_STREAM_CLIENT_REPORT_TIMEOUT;
+        msg.last_known_metric = SPICE_MSGC_METRIC_LAST;
+        red_channel_client_init_send_data(rcc, SPICE_MSG_DISPLAY_STREAM_ACTIVATE_REPORT);
+        spice_marshall_msg_display_stream_activate_metrics(m, &msg);
         break;
     }
     case RED_PIPE_ITEM_TYPE_STREAM_DATA: {
