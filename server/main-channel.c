@@ -28,6 +28,8 @@
 #include "main-channel.h"
 #include "main-channel-client.h"
 
+RECORDER(main_channel, 32, "Main channel");
+
 struct MainChannel
 {
     RedChannel parent;
@@ -56,7 +58,10 @@ RedClient *main_channel_get_client_by_link_id(MainChannel *main_chan, uint32_t c
     FOREACH_CLIENT(main_chan, rcc) {
         MainChannelClient *mcc = MAIN_CHANNEL_CLIENT(rcc);
         if (main_channel_client_get_connection_id(mcc) == connection_id) {
-            return red_channel_client_get_client(rcc);
+            RedClient *result = red_channel_client_get_client(rcc);
+            record(main_channel, "Client for connection id %u in %p is %p rcc %p",
+                   main_chan, connection_id, result, rcc);
+            return result;
         }
     }
     return NULL;
@@ -133,6 +138,7 @@ static bool main_channel_handle_migrate_data(RedChannelClient *rcc,
 
 void main_channel_push_multi_media_time(MainChannel *main_chan, uint32_t time)
 {
+    record(main_channel, "Push multimedia time %u for MainChannel %p", time, main_chan);
     red_channel_pipes_add(RED_CHANNEL(main_chan), main_multi_media_time_item_new(time));
 }
 
@@ -170,18 +176,23 @@ static bool main_channel_handle_message(RedChannelClient *rcc, uint16_t type,
     MainChannelClient *mcc = MAIN_CHANNEL_CLIENT(rcc);
     RedsState *reds = red_channel_get_server(channel);
 
+    record(main_channel, "Handle message rcc %p type %u size %u", rcc, type, size);
+
     switch (type) {
     case SPICE_MSGC_MAIN_AGENT_START: {
         SpiceMsgcMainAgentStart *tokens;
 
+        record(main_channel, "Main agent start");
         tokens = (SpiceMsgcMainAgentStart *)message;
         reds_on_main_agent_start(reds, mcc, tokens->num_tokens);
         break;
     }
     case SPICE_MSGC_MAIN_AGENT_DATA:
+        record(main_channel, "Main agent data");
         reds_on_main_agent_data(reds, mcc, message, size);
         break;
     case SPICE_MSGC_MAIN_AGENT_TOKEN: {
+        record(main_channel, "Main agent token");
         SpiceMsgcMainAgentTokens *tokens;
 
         tokens = (SpiceMsgcMainAgentTokens *)message;
@@ -189,35 +200,44 @@ static bool main_channel_handle_message(RedChannelClient *rcc, uint16_t type,
         break;
     }
     case SPICE_MSGC_MAIN_ATTACH_CHANNELS:
+        record(main_channel, "Attach channels");
         main_channel_push_channels(mcc);
         break;
     case SPICE_MSGC_MAIN_MIGRATE_CONNECTED:
+        record(main_channel, "Migrate connected");
         main_channel_client_handle_migrate_connected(mcc,
                                                      TRUE /* success */,
                                                      FALSE /* seamless */);
         break;
     case SPICE_MSGC_MAIN_MIGRATE_CONNECTED_SEAMLESS:
+        record(main_channel, "Migrate connected seamless");
         main_channel_client_handle_migrate_connected(mcc,
                                                      TRUE /* success */,
                                                      TRUE /* seamless */);
         break;
     case SPICE_MSGC_MAIN_MIGRATE_CONNECT_ERROR:
+        record(main_channel, "Migrate connect error");
         main_channel_client_handle_migrate_connected(mcc, FALSE, FALSE);
         break;
     case SPICE_MSGC_MAIN_MIGRATE_DST_DO_SEAMLESS:
+        record(main_channel, "Migrate do seamless");
         main_channel_client_handle_migrate_dst_do_seamless(mcc,
             ((SpiceMsgcMainMigrateDstDoSeamless *)message)->src_version);
         break;
     case SPICE_MSGC_MAIN_MIGRATE_END:
+        record(main_channel, "Migrate end");
         main_channel_client_handle_migrate_end(mcc);
         break;
     case SPICE_MSGC_MAIN_MOUSE_MODE_REQUEST:
+        record(main_channel, "Mouse mode request");
         reds_on_main_mouse_mode_request(reds, message, size);
         break;
     case SPICE_MSGC_PONG:
+        record(main_channel, "Pong");
         main_channel_client_handle_pong(mcc, (SpiceMsgPing *)message, size);
         break;
     default:
+        record(main_channel, "Other message");
         return red_channel_client_handle_message(rcc, type, size, message);
     }
     return TRUE;
