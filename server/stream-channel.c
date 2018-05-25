@@ -29,6 +29,8 @@
 #include "display-limits.h"
 #include "video-stream.h" // TODO remove, put common stuff
 
+RECORDER_DEFINE(stream_channel, 32, "Events related to stream channels");
+
 #define TYPE_STREAM_CHANNEL_CLIENT stream_channel_client_get_type()
 
 #define STREAM_CHANNEL_CLIENT(obj) \
@@ -217,6 +219,8 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
     SpiceMarshaller *m = red_channel_client_get_marshaller(rcc);
     StreamChannelClient *client = STREAM_CHANNEL_CLIENT(rcc);
     StreamChannel *channel = STREAM_CHANNEL(red_channel_client_get_channel(rcc));
+
+    RECORD(stream_channel, "Send item %p type %u to rcc %p", pipe_item, pipe_item->type, rcc);
 
     switch (pipe_item->type) {
     case RED_PIPE_ITEM_TYPE_SURFACE_CREATE: {
