@@ -278,6 +278,8 @@ main_channel_constructed(GObject *object)
 static void
 main_channel_init(MainChannel *self)
 {
+    recorder_dump_on_common_signals(0,0);
+    record(main_channel, "Initialization of %p", self);
 }
 
 static void
