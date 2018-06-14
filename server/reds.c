@@ -3639,6 +3639,8 @@ SPICE_GNUC_VISIBLE int spice_server_init(SpiceServer *reds, SpiceCoreInterface *
 {
     int ret;
 
+    recorder_trace_set(".*_error|.*_warning");
+    recorder_dump_on_common_signals(0,0);
     ret = do_spice_init(reds, core);
     if (reds->config->renderers->len == 0) {
         reds_add_renderer(reds, default_renderer);
