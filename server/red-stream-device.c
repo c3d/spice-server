@@ -89,6 +89,8 @@ fill_dev_hdr(StreamDevHeader *hdr, StreamMsgType msg_type, uint32_t msg_size)
     hdr->size = GUINT32_TO_LE(msg_size);
 }
 
+RECORDER_DEFINE(stream_read, 32, "Reading from incoming stream");
+
 static bool
 stream_device_partial_read(StreamDevice *dev, SpiceCharDeviceInstance *sin)
 {
@@ -96,6 +98,8 @@ stream_device_partial_read(StreamDevice *dev, SpiceCharDeviceInstance *sin)
     int n;
     bool handled = false;
 
+    record(stream_read, "Reading from dev %p sin %p", dev, sin);
+    
     sif = spice_char_device_get_interface(sin);
 
     // in order to get in sync every time we open the device we need to discard data here.
@@ -103,7 +107,9 @@ stream_device_partial_read(StreamDevice *dev, SpiceCharDeviceInstance *sin)
     // from Qemu
     if (G_UNLIKELY(dev->has_error)) {
         uint8_t buf[16 * 1024];
+        record(stream_read, "Device has error, flushing");
         while (sif->read(sin, buf, sizeof(buf)) > 0) {
+            record(stream_read, "flushing read data");
             continue;
         }
 
@@ -126,7 +132,9 @@ stream_device_partial_read(StreamDevice *dev, SpiceCharDeviceInstance *sin)
 
     /* read header */
     while (dev->hdr_pos < sizeof(dev->hdr)) {
+        record(stream_read, "Reading header from offset %u/%u", dev->hdr_pos, sizeof(dev->hdr));
         n = sif->read(sin, (uint8_t *) &dev->hdr + dev->hdr_pos, sizeof(dev->hdr) - dev->hdr_pos);
+        record(stream_read, "Read %u bytes", n);
         if (n <= 0) {
             return false;
         }
@@ -138,6 +146,7 @@ stream_device_partial_read(StreamDevice *dev, SpiceCharDeviceInstance *sin)
         }
     }
 
+    record(stream_read, "Header type is %u", dev->hdr.type);
     switch ((StreamMsgType) dev->hdr.type) {
     case STREAM_TYPE_FORMAT:
         if (dev->hdr.size != sizeof(StreamMsgFormat)) {
@@ -165,6 +174,7 @@ stream_device_partial_read(StreamDevice *dev, SpiceCharDeviceInstance *sin)
         break;
     case STREAM_TYPE_CAPABILITIES:
         handled = handle_msg_capabilities(dev, sin);
+        record(stream_read, "Capabilities, handled=%+s", handled ? "yes" : "no");
         break;
     default:
         handled = handle_msg_invalid(dev, sin, "Invalid message type");
