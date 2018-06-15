@@ -30,6 +30,8 @@
 #include "video-stream.h" // TODO remove, put common stuff
 
 RECORDER_DEFINE(stream_channel, 32, "Events related to stream channels");
+RECORDER_DEFINE(stream_stat, 64, "Statistics about a stream");
+RECORDER_DEFINE(stream_send, 64, "Sending data to a stream");
 
 #define TYPE_STREAM_CHANNEL_CLIENT stream_channel_client_get_type()
 
@@ -528,6 +530,9 @@ stream_channel_update_queue_stat(StreamChannel *channel,
 {
     channel->queue_stat.num_items += num_diff;
     channel->queue_stat.size += size_diff;
+    record(stream_stat, "Queue stat: add %d items (total %d), size %d (total %d)",
+           num_diff, channel->queue_stat.num_items,
+           size_diff, channel->queue_stat.size);
     if (channel->queue_cb) {
         channel->queue_cb(channel->queue_opaque, &channel->queue_stat, channel);
     }
@@ -546,6 +551,8 @@ data_item_free(RedPipeItem *base)
 void
 stream_channel_send_data(StreamChannel *channel, const void *data, size_t size, uint32_t mm_time)
 {
+    record(stream_send, "Sending %u items mm_time %u buffer %p to channel %d",
+           size, mm_time, data, channel->stream_id);
     if (channel->stream_id < 0) {
         // this condition can happen if the guest didn't handle
         // the format stop that we send so think the stream is still
