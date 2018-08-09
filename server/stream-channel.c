@@ -216,6 +216,8 @@ marshall_monitors_config(RedChannelClient *rcc, StreamChannel *channel, SpiceMar
     spice_marshall_msg_display_monitors_config(m, &msg.config);
 }
 
+RECORDER_DEFINE(stream_channel_activate, 16, "Activation of stream channels");
+
 static void
 stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
 {
@@ -276,7 +278,7 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
         break;
     }
     case RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_REPORT: {
-        RECORD(stream_channel, "Activating reports on stream %d", client->stream_id);
+        RECORD(stream_channel_activate, "Activating reports on stream %d", client->stream_id);
         if (client->stream_id < 0
             || !red_channel_client_test_remote_cap(rcc, SPICE_DISPLAY_CAP_STREAM_REPORT)) {
             return;
@@ -291,7 +293,7 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
         break;
     }
     case RED_PIPE_ITEM_TYPE_STREAM_ACTIVATE_METRICS: {
-        RECORD(stream_channel, "Activating metrics on stream %d", client->stream_id);
+        RECORD(stream_channel_activate, "Activating metrics on stream %d", client->stream_id);
         if (client->stream_id < 0
             || !red_channel_client_test_remote_cap(rcc, SPICE_DISPLAY_CAP_METRICS)) {
             return;
