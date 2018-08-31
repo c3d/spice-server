@@ -1357,6 +1357,9 @@ static void *red_worker_main(void *arg)
 {
     RedWorker *worker = arg;
 
+#ifdef HAVE_PTHREAD_SETNAME_NP_1ARG
+    pthread_setname_np("SPICE Worker");
+#endif
     spice_debug("begin");
     SPICE_VERIFY(MAX_PIPE_SIZE > WIDE_CLIENT_ACK_WINDOW &&
            MAX_PIPE_SIZE > NARROW_CLIENT_ACK_WINDOW); //ensure wakeup by ack message
@@ -1391,7 +1394,9 @@ bool red_worker_run(RedWorker *worker)
         spice_error("create thread failed %d", r);
     }
     pthread_sigmask(SIG_SETMASK, &curr_sig_mask, NULL);
+#ifndef HAVE_PTHREAD_SETNAME_NP_1ARG
     pthread_setname_np(worker->thread, "SPICE Worker");
+#endif
 
     return r == 0;
 }
