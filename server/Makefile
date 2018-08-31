@@ -44,7 +44,8 @@ endif
 
 CONFIG=		<lz4.h>					\
 		libjpeg					\
-		lz4_compress_fast_continue
+		lz4_compress_fast_continue		\
+		pthread_setname_np_1arg
 
 GENERATED=	spice-server-enums.h			\
 		spice-server-enums.c			\
