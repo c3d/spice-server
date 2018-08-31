@@ -348,6 +348,9 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
     red_channel_client_begin_send_message(rcc);
 }
 
+RECORDER_DEFINE(server_stream_metrics, 32, "Metrics received by server from client")
+RECORDER_TWEAK_DEFINE(server_parameter_percent, 10, "Percentage of change caused by input metric");
+
 static bool handle_stream_metric(RedChannelClient *rcc,
                                  SpiceMsgcDisplayStreamMetric *metric)
 {
@@ -368,12 +371,28 @@ static bool handle_stream_metric(RedChannelClient *rcc,
 
     uint32_t metric_id = metric->metric_id;
     uint32_t value = metric->metric_value * metric->metric_duration / 1000;
-    uint32_t percent = 10;
+    uint32_t percent = RECORDER_TWEAK(server_parameter_percent);
 #define METRIC_ADJUST(min, max, x)                                      \
     if (value >= min && value <= max) {                                 \
         adjusted_state.x = (  percent        * value                    \
                            + (100 - percent) * adjusted_state.x) / 100; \
     }
+    static char *metric_name[SPICE_MSGC_METRIC_LAST] = {
+        [SPICE_MSGC_METRIC_INVALID]                     = "METRIC_INVALID",
+
+        [SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND]  = "METRIC_FRAMES_RECEIVED_PER_SECOND",
+        [SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND]   = "METRIC_FRAMES_DECODED_PER_SECOND",
+        [SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND] = "METRIC_FRAMES_DISPLAYED_PER_SECOND",
+        [SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND]   = "METRIC_FRAMES_DROPPED_PER_SECOND",
+        [SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND]   = "METRIC_BYTES_RECEIVED_PER_SECOND",
+        [SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND]    = "METRIC_BYTES_DECODED_PER_SECOND",
+        [SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND]  = "METRIC_BYTES_DISPLAYED_PER_SECOND",
+        [SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND]    = "METRIC_BYTES_DROPPED_PER_SECOND",
+        [SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH]        = "METRIC_DECODER_QUEUE_LENGTH",
+    };
+    record(server_stream_metrics, "Received %+s (%u) value %u",
+           metric_id < SPICE_MSGC_METRIC_LAST ? metric_name[metric_id] : "Unknown",
+           metric_id, value);
 
     switch(metric_id) {
     case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
@@ -387,6 +406,7 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND:
+    case SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND:
         METRIC_ADJUST(100000, 32000000, average_bytes_per_second);
         break;
     case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
