@@ -69,12 +69,17 @@ G_DEFINE_TYPE(StreamChannelClient, stream_channel_client, TYPE_COMMON_GRAPHICS_C
 
 typedef struct StreamEncoderParameters {
     uint32_t frames_per_second;
-    uint32_t average_bytes_per_second;
     uint32_t max_bytes_per_second;
+    uint32_t average_bytes_per_second;
+    uint32_t gop_length;
     uint32_t quality;
-    uint32_t dropped_frames;
-    uint32_t decoder_queue_length;
 } StreamEncoderParameters;
+
+typedef struct StreamMetrics {
+    uint32_t value[SPICE_MSGC_METRIC_LAST];
+    uint32_t average[SPICE_MSGC_METRIC_LAST];
+    uint32_t weight[SPICE_MSGC_METRIC_LAST];
+} StreamMetrics;
 
 struct StreamChannel {
     RedChannel parent;
@@ -99,6 +104,7 @@ struct StreamChannel {
     stream_channel_adjust_proc adjust_cb;
     void *adjust_opaque;
     StreamEncoderParameters encoder_parameters;
+    StreamMetrics metrics;
 };
 
 struct StreamChannelClass {
@@ -348,6 +354,17 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
     red_channel_client_begin_send_message(rcc);
 }
 
+RECORDER_DEFINE(smstr_fps,              16, "Smart streaming target frames per second")
+RECORDER_DEFINE(smstr_avg_bps,          16, "Smart streaming target average bytes per second")
+RECORDER_DEFINE(smstr_max_bps,          16, "Smart streaming target max bytes per second")
+RECORDER_DEFINE(smstr_gop_length,       16, "Smart streaming target GOP length")
+RECORDER_DEFINE(smstr_quality,          16, "Smart streaming target quality")
+
+static bool stream_smarts(StreamMetrics *metrics, StreamEncoderParameters *parms)
+{
+    return FALSE;
+}
+
 RECORDER_DEFINE(server_stream_metrics, 32, "Metrics received by server from client")
 RECORDER_TWEAK_DEFINE(server_parameter_percent, 10, "Percentage of change caused by input metric");
 
@@ -359,13 +376,6 @@ RECORDER_TWEAK_DEFINE(bps_min, 100000, "Minimum number of bytes per second for s
 RECORDER_TWEAK_DEFINE(bps_max, 32000000, "Maximum number of bytes per second for smart streaming");
 RECORDER_TWEAK_DEFINE(queue_length_min, 0, "Minimum queue length considered by smart streaming");
 RECORDER_TWEAK_DEFINE(queue_length_max, 32000000, "Maximum queue length considered by smart streaming");
-
-RECORDER_DEFINE(smstr_fps,              16, "Smart streaming target frames per second")
-RECORDER_DEFINE(smstr_avg_bps,          16, "Smart streaming target average bytes per second")
-RECORDER_DEFINE(smstr_max_bps,          16, "Smart streaming target max bytes per second")
-RECORDER_DEFINE(smstr_quality,          16, "Smart streaming target quality")
-RECORDER_DEFINE(smstr_dropped_frames,   16, "Smart streaming evaluation for dropped frames")
-RECORDER_DEFINE(smstr_queue_length,     16, "Smart streaming evaluation for queue length ")
 
 RECORDER_DEFINE(metric_received_fps,    16, "Incoming metric for received frames per second")
 RECORDER_DEFINE(metric_decoded_fps,     16, "Incoming metric for decoded frames per second")
@@ -382,8 +392,9 @@ static bool handle_stream_metric(RedChannelClient *rcc,
 {
     RedChannel *red_channel = red_channel_client_get_channel(rcc);
     StreamChannel *channel = STREAM_CHANNEL(red_channel);
-    StreamEncoderParameters saved_state = channel->encoder_parameters;
-    StreamEncoderParameters adjusted_state = saved_state;
+    StreamMetrics *metrics = &channel->metrics;
+    StreamEncoderParameters saved = channel->encoder_parameters;
+    StreamEncoderParameters adjusted = saved;
 
     if (metric->stream_id != channel->stream_id) {
         spice_warning("stream_metrics: invalid stream id %u-%u",
@@ -399,11 +410,7 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     uint32_t value = metric->metric_value * metric->metric_duration / 1000;
     uint32_t average = metrics->average[metric_id];
     uint32_t percent = RECORDER_TWEAK(server_parameter_percent);
-#define METRIC_ADJUST(min, max, x)                                      \
-    if (value >= RECORDER_TWEAK(min) && value <= RECORDER_TWEAK(max)) { \
-        adjusted_state.x = (  percent        * value                    \
-                           + (100 - percent) * adjusted_state.x) / 100; \
-    }
+
     static char *metric_name[SPICE_MSGC_METRIC_LAST] = {
         [SPICE_MSGC_METRIC_INVALID]                     = "METRIC_INVALID",
 
@@ -460,53 +467,68 @@ static bool handle_stream_metric(RedChannelClient *rcc,
         break;
     }
 
+    // Check which bounds apply for the incoming metric
+    // REVISIT: Do the same thing without recorder tweaks
+    uint32_t min = 0;
+    uint32_t max = ~0U;
     switch(metric_id) {
     case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
     case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
     case SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND:
-        METRIC_ADJUST(fps_min, fps_max, frames_per_second);
-        record(smstr_fps, "Evaluating FPS=%u", adjusted_state.frames_per_second);
+        min = RECORDER_TWEAK(fps_min);
+        max = RECORDER_TWEAK(fps_max);
         break;
     case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
-        METRIC_ADJUST(dropped_fps_min, dropped_fps_max, dropped_frames);
-        record(smstr_dropped_frames, "Evaluating dropped=%u", adjusted_state.dropped_frames);
+        min = RECORDER_TWEAK(dropped_fps_min);
+        max = RECORDER_TWEAK(dropped_fps_max);
         break;
     case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND:
+        min = RECORDER_TWEAK(bps_min);
+        max = RECORDER_TWEAK(bps_max);
+        break;
     case SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND:
-        METRIC_ADJUST(bps_min, bps_max, average_bytes_per_second);
-        record(smstr_avg_bps, "Evaluating BPS=%u", adjusted_state.average_bytes_per_second);
+        min = 0;
+        max = RECORDER_TWEAK(bps_max);
         break;
     case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
-        METRIC_ADJUST(queue_length_min, queue_length_max, decoder_queue_length);
-        record(smstr_queue_length, "Evaluating queue=%u", adjusted_state.decoder_queue_length);
+        min = RECORDER_TWEAK(queue_length_min);
+        max = RECORDER_TWEAK(queue_length_max);
         break;
-
     default:
-        spice_warning("handle_stream_metrics received unknown metric %u", metric->metric_id);
+        spice_warning("stream_metrics: received unknown metric %u", metric_id);
+        return FALSE;
     }
 
-    if (adjusted_state.frames_per_second != saved_state.frames_per_second) {
-        channel->adjust_cb(channel->adjust_opaque,
-                           STREAM_MSG_PARAMETER_FRAMES_PER_SECOND,
-                           adjusted_state.frames_per_second,
-                           channel);
-    }
-    if (adjusted_state.max_bytes_per_second != saved_state.max_bytes_per_second) {
-        channel->adjust_cb(channel->adjust_opaque,
-                           STREAM_MSG_PARAMETER_MAX_BYTES_PER_SECOND,
-                           adjusted_state.average_bytes_per_second,
-                           channel);
-    }
-    if (adjusted_state.average_bytes_per_second != saved_state.average_bytes_per_second) {
-        channel->adjust_cb(channel->adjust_opaque,
-                           STREAM_MSG_PARAMETER_AVERAGE_BYTES_PER_SECOND,
-                           adjusted_state.average_bytes_per_second,
-                           channel);
+    // Adjust the metric, smoothing over time using 'percent'
+    if (value >= min && value <= max) {
+        if (!metrics->weight[metric_id]) {
+            percent = 100;
+            metrics->weight[metric_id] = 1;
+        }
+        uint32_t previous = metrics->average[metric_id];
+        average = (percent * value + (100-percent) * previous) / 100;
+        metrics->average[metric_id] = average;
+        metrics->value[metric_id] = value;
     }
 
-    channel->encoder_parameters = adjusted_state;
+    // Now perform comparisons to try to detect bad scenarios
+    if (stream_smarts(metrics, &adjusted)) {
+#define SEND_ADJUSTMENT(parm, msg)                                      \
+        if (adjusted.parm != saved.parm) {                              \
+            channel->adjust_cb(channel->adjust_opaque,                  \
+                               msg, adjusted.parm, channel);            \
+        }
+        SEND_ADJUSTMENT(frames_per_second, STREAM_MSG_PARAMETER_FRAMES_PER_SECOND);
+        SEND_ADJUSTMENT(max_bytes_per_second, STREAM_MSG_PARAMETER_MAX_BYTES_PER_SECOND);
+        SEND_ADJUSTMENT(average_bytes_per_second, STREAM_MSG_PARAMETER_AVERAGE_BYTES_PER_SECOND);
+        SEND_ADJUSTMENT(gop_length, STREAM_MSG_PARAMETER_GROUP_OF_PICTURE_SIZE);
+        SEND_ADJUSTMENT(quality, STREAM_MSG_PARAMETER_QUALITY);
+#undef SEND_ADJUSTMENT
+        channel->encoder_parameters = adjusted;
+    }
+
     return TRUE;
 
 }
