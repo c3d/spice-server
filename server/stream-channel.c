@@ -354,14 +354,118 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
     red_channel_client_begin_send_message(rcc);
 }
 
+RECORDER_TWEAK_DEFINE(fps_target, 60,           "Target frames per second for smart streaming");
+RECORDER_TWEAK_DEFINE(bps_target, 2000000,      "Target bytes per second for smart-streaming");
+RECORDER_TWEAK_DEFINE(fps_delta,  1,            "Incremental adjustment to frames per second");
+RECORDER_TWEAK_DEFINE(bps_delta,  2000,         "Incremental adjustment to bytes per second");
+
 RECORDER_DEFINE(smstr_fps,              16, "Smart streaming target frames per second")
 RECORDER_DEFINE(smstr_avg_bps,          16, "Smart streaming target average bytes per second")
 RECORDER_DEFINE(smstr_max_bps,          16, "Smart streaming target max bytes per second")
 RECORDER_DEFINE(smstr_gop_length,       16, "Smart streaming target GOP length")
 RECORDER_DEFINE(smstr_quality,          16, "Smart streaming target quality")
 
-static bool stream_smarts(StreamMetrics *metrics, StreamEncoderParameters *parms)
+
+static bool stream_smarts(uint32_t metric_id, uint32_t value, uint32_t average,
+                          StreamMetrics *metrics, StreamEncoderParameters *parms)
 {
+    uint32_t tgt_fps = RECORDER_TWEAK(fps_target);
+    //uint32_t tgt_bps = RECORDER_TWEAK(bps_target);
+    //uint32_t adj_fps = RECORDER_TWEAK(fps_delta);
+    uint32_t adj_bps = RECORDER_TWEAK(bps_delta);
+    uint32_t fps = parms->frames_per_second;
+    uint32_t bps = parms->average_bytes_per_second;
+
+    // Average values
+    uint32_t rec_fps = metrics->average[SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND];
+    uint32_t dec_fps = metrics->average[SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND];
+    uint32_t dis_fps = metrics->average[SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND];
+    //uint32_t drp_fps = metrics->average[SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND];
+    uint32_t rec_bps = metrics->average[SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND];
+    //uint32_t dec_bps = metrics->average[SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND];
+    //uint32_t dis_bps = metrics->average[SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND];
+    //uint32_t drp_bps = metrics->average[SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND];
+    //uint32_t que_len = metrics->average[SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH];
+
+    // Latest values
+    //uint32_t cur_rec_fps = metrics->value[SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND];
+    //uint32_t cur_dec_fps = metrics->value[SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND];
+    //uint32_t cur_dis_fps = metrics->value[SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND];
+    //uint32_t cur_drp_fps = metrics->value[SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND];
+    //uint32_t cur_rec_bps = metrics->value[SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND];
+    //uint32_t cur_dec_bps = metrics->value[SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND];
+    //uint32_t cur_dis_bps = metrics->value[SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND];
+    //uint32_t cur_drp_bps = metrics->value[SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND];
+    //uint32_t cur_que_len = metrics->value[SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH];
+
+    // Check if data was recveived
+    uint32_t has_rec_fps = metrics->weight[SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND];
+    uint32_t has_dec_fps = metrics->weight[SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND];
+    uint32_t has_dis_fps = metrics->weight[SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND];
+    //uint32_t has_drp_fps = metrics->weight[SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND];
+    //uint32_t has_rec_bps = metrics->weight[SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND];
+    //uint32_t has_dec_bps = metrics->weight[SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND];
+    //uint32_t has_dis_bps = metrics->weight[SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND];
+    //uint32_t has_drp_bps = metrics->weight[SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND];
+    //uint32_t has_que_len = metrics->weight[SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH];
+
+#define ADJUST(parm, reco, reason, condition, target)                   \
+    if (condition) {                                                    \
+        uint32_t updated = (target);                                    \
+        record(reco,                                                    \
+               "Adjusting " #parm " from %u to %u (" reason ")",        \
+               parms->frames_per_second, updated);                      \
+        parms->parm = updated;                                          \
+        return TRUE;                                                    \
+    }
+#define ADJUST_FPS(r,c,t) ADJUST(frames_per_second, smstr_fps, r,c,t)
+#define ADJUST_BPS(r,c,t) ADJUST(average_bytes_per_second, smstr_avg_bps, r,c,t)
+
+    switch(metric_id) {
+    case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
+    case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
+    case SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND:
+        // We have a client-side problem is one of the following is true:
+        // - Any incoming FPS metric is below our target
+        // - There is a discrepancy in the pipeline, e.g. we display less than we decode
+        ADJUST_FPS("Low metric", average < fps, average);
+        ADJUST_FPS("Display lag", has_dec_fps && has_dis_fps && dis_fps < dec_fps, dis_fps);
+        ADJUST_FPS("Decoder lag", has_rec_fps && has_dec_fps && dec_fps < rec_fps, dec_fps);
+        ADJUST_FPS("Pipleine lag", has_dis_fps && has_rec_fps && dis_fps < rec_fps, dis_fps);
+
+        // Otherwise, try to return to the target FPS
+        ADJUST_FPS("Return to display FPS", has_dis_fps && fps < dis_fps, dis_fps);
+        ADJUST_FPS("Return to target FPS", fps < tgt_fps, (fps + tgt_fps + 1) / 2);
+        break;
+
+    case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
+    case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
+    case SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND:
+        // There is a network issue if:
+        // - The client receives much less than what we send
+        // REVISIT: Implement that step
+
+        // REVISIT: Should we recompute max bytes per second?
+        // Smart streaming currently does not adjust it
+
+        // Try to get closer to the average that is measured
+        ADJUST_BPS("Usage going down", value < average && bps > adj_bps, bps - adj_bps);
+        ADJUST_BPS("Usage going up", value > average && bps < rec_bps, bps + adj_bps);
+        break;
+
+    case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
+        ADJUST_FPS("Dropped frames", average != 0 && fps > 1, fps - 1);
+        break;
+
+    case SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND:
+        ADJUST_BPS("Dropped frames", average != 0 && bps > adj_bps, bps - adj_bps);
+        break;
+
+    case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
+        ADJUST_FPS("Queue length is diverging", average > 10 && fps > 1, fps - 1);
+        break;
+    }
+
     return FALSE;
 }
 
@@ -514,7 +618,7 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     }
 
     // Now perform comparisons to try to detect bad scenarios
-    if (stream_smarts(metrics, &adjusted)) {
+    if (stream_smarts(metric_id, value, average, metrics, &adjusted)) {
 #define SEND_ADJUSTMENT(parm, msg)                                      \
         if (adjusted.parm != saved.parm) {                              \
             channel->adjust_cb(channel->adjust_opaque,                  \
