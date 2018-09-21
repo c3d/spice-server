@@ -523,6 +523,8 @@ RECORDER_TWEAK_DEFINE(dropped_fps_max, 120, "Maximum number of dropped frames pe
 RECORDER_TWEAK_DEFINE(queue_length_min, 0, "Minimum queue length considered by smart streaming");
 RECORDER_TWEAK_DEFINE(queue_length_max, 32000000, "Maximum queue length considered by smart streaming");
 
+RECORDER_TWEAK_DEFINE(smstr_clear, 0, "Clear all smart streaming stats for testing");
+
 RECORDER_DEFINE(metric_received_fps,    16, "Incoming metric for received frames per second")
 RECORDER_DEFINE(metric_decoded_fps,     16, "Incoming metric for decoded frames per second")
 RECORDER_DEFINE(metric_displayed_fps,   16, "Incoming metric for displayed frames per second")
@@ -541,6 +543,14 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     StreamMetrics *metrics = &channel->metrics;
     StreamEncoderParameters saved = channel->encoder_parameters;
     StreamEncoderParameters adjusted = saved;
+
+    if (RECORDER_TWEAK(smstr_clear)) {
+        RECORDER_TWEAK(smstr_clear) = 0;
+        memset(&channel->metrics, 0, sizeof(channel->metrics));
+        memset(&channel->encoder_parameters, 0, sizeof(channel->encoder_parameters));
+        memset(&saved, 0, sizeof(saved));
+        memset(&adjusted, 0, sizeof(adjusted));
+    }
 
     if (metric->stream_id != channel->stream_id) {
         spice_warning("stream_metrics: invalid stream id %u-%u",
