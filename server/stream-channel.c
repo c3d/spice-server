@@ -357,12 +357,12 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
 
 RECORDER_TWEAK_DEFINE(fps_tgt,          60, "Ideal frames per second for smart streaming");
 RECORDER_TWEAK_DEFINE(fps_min,           2, "  Minimum number of FPS");
-RECORDER_TWEAK_DEFINE(fps_max,          60, "  Maximum number of FPS");
+RECORDER_TWEAK_DEFINE(fps_max,          80, "  Maximum number of FPS");
 RECORDER_TWEAK_DEFINE(fps_adjpct,       10, "  Percentage of rate adjustment for FPS");
 
-RECORDER_TWEAK_DEFINE(bps_tgt,       80000, "Ideal bytes per second for smart streaming");
-RECORDER_TWEAK_DEFINE(bps_min,        2000, "  Minimum number of BPS");
-RECORDER_TWEAK_DEFINE(bps_max,    10000000, "  Maximum number of BPS");
+RECORDER_TWEAK_DEFINE(bps_tgt,      800000, "Ideal bytes per second for smart streaming");
+RECORDER_TWEAK_DEFINE(bps_min,       20000, "  Minimum number of BPS");
+RECORDER_TWEAK_DEFINE(bps_max,    20000000, "  Maximum number of BPS");
 RECORDER_TWEAK_DEFINE(bps_adjpct,       10, "  Percentage of rate adjustment for BPS");
 
 RECORDER_DEFINE(smstr_fps,              16, "Smart streaming frames per second")
