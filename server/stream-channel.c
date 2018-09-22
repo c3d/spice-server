@@ -462,10 +462,11 @@ static bool stream_smarts_follow(uint32_t metric_id, uint32_t value, uint32_t av
     bps += bps_tgt * bps_tgt_weight;
     bps_weight += bps_tgt_weight;
 
+    uint32_t metric_decay = 10;
     for (m = 1; m < SPICE_MSGC_METRIC_LAST; m++) {
         uint32_t average = metrics->average[m];
         uint32_t weight = metrics->weight[m];
-        metrics->weight[m] >>= 1;
+        metrics->weight[m] = metrics->weight[m] * (100 - metric_decay) / 100;
 
         int32_t fps_impact = metric_fps_impact[m];
         if (fps_impact) {
