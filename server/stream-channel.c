@@ -354,16 +354,36 @@ stream_channel_send_item(RedChannelClient *rcc, RedPipeItem *pipe_item)
     red_channel_client_begin_send_message(rcc);
 }
 
+// Selection of smart streaming algorithm:
+// 0: Smart stremaing is disabled (default)
+// 1: Follow FPS / BPS from client (original algo proposed in Redmine)
+// 2: "Smarter" algo that tries to understand what happens (not more efficient in practice)
+RECORDER_TWEAK_DEFINE(smstr_algo,        0, "Smart streaming: 0=none, 1=follow, 2=think");
 
 RECORDER_TWEAK_DEFINE(fps_tgt,          60, "Ideal frames per second for smart streaming");
 RECORDER_TWEAK_DEFINE(fps_min,           2, "  Minimum number of FPS");
 RECORDER_TWEAK_DEFINE(fps_max,          80, "  Maximum number of FPS");
-RECORDER_TWEAK_DEFINE(fps_adjpct,       10, "  Percentage of rate adjustment for FPS");
+RECORDER_TWEAK_DEFINE(fps_cur_weight,   10, "  Weight of current FPS");
+RECORDER_TWEAK_DEFINE(fps_tgt_weight,   20, "  Weight of target FPS");
+RECORDER_TWEAK_DEFINE(fps_rec_weight,   10, "  Weight of received FPS");
+RECORDER_TWEAK_DEFINE(fps_dec_weight,   10, "  Weight of decoded FPS");
+RECORDER_TWEAK_DEFINE(fps_dsp_weight,   30, "  Weight of display FPS");
+RECORDER_TWEAK_DEFINE(fps_drp_weight,   40, "  Weight of dropped FPS");
+RECORDER_TWEAK_DEFINE(fps_qlen_weight,  60, "  Weight of queue length on FPS");
 
 RECORDER_TWEAK_DEFINE(bps_tgt,      800000, "Ideal bytes per second for smart streaming");
 RECORDER_TWEAK_DEFINE(bps_min,       20000, "  Minimum number of BPS");
 RECORDER_TWEAK_DEFINE(bps_max,    20000000, "  Maximum number of BPS");
-RECORDER_TWEAK_DEFINE(bps_adjpct,       10, "  Percentage of rate adjustment for BPS");
+RECORDER_TWEAK_DEFINE(bps_cur_weight,   10, "  Weight of current BPS");
+RECORDER_TWEAK_DEFINE(bps_tgt_weight,   20, "  Weight of target BPS");
+RECORDER_TWEAK_DEFINE(bps_rec_weight,   10, "  Weight of received BPS");
+RECORDER_TWEAK_DEFINE(bps_dec_weight,   10, "  Weight of decoded BPS");
+RECORDER_TWEAK_DEFINE(bps_dsp_weight,   30, "  Weight of display BPS");
+RECORDER_TWEAK_DEFINE(bps_drp_weight,   40, "  Weight of dropped BPS");
+
+RECORDER_TWEAK_DEFINE(qlen_detect,     100, "Queue length detection threshold");
+RECORDER_TWEAK_DEFINE(drop_fps_detect,   5, "Dropped FPS detection threshold");
+RECORDER_TWEAK_DEFINE(drop_bps_detect,1000, "Dropped FPS threshold");
 
 RECORDER_DEFINE(smstr_fps,              16, "Smart streaming frames per second")
 RECORDER_DEFINE(smstr_bps,              16, "Smart streaming average bytes per second")
@@ -371,9 +391,139 @@ RECORDER_DEFINE(smstr_max_bps,          16, "Smart streaming max bytes per secon
 RECORDER_DEFINE(smstr_gop_length,       16, "Smart streaming GOP length")
 RECORDER_DEFINE(smstr_quality,          16, "Smart streaming quality")
 
+static bool stream_smarts_follow(uint32_t metric_id, uint32_t value, uint32_t average,
+                                 StreamMetrics *metrics, StreamEncoderParameters *parms)
+{
+    uint32_t fps = parms->frames_per_second;
+    uint32_t bps = parms->average_bytes_per_second;
+    unsigned m;
+    static int32_t metric_fps_impact[SPICE_MSGC_METRIC_LAST] =
+    {
+        [SPICE_MSGC_METRIC_INVALID]                     = 0,
 
-static bool stream_smarts(uint32_t metric_id, uint32_t value, uint32_t average,
-                          StreamMetrics *metrics, StreamEncoderParameters *parms)
+        [SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND]  = 1,
+        [SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND]   = 1,
+        [SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND] = 1,
+        [SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND]   = -1,
+        [SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND]   = 0,
+        [SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND]    = 0,
+        [SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND]  = 0,
+        [SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND]    = 0,
+        [SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH]        = -1,
+    };
+
+    static int32_t metric_bps_impact[SPICE_MSGC_METRIC_LAST] =
+    {
+        [SPICE_MSGC_METRIC_INVALID]                     = 0,
+
+        [SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND]  = 0,
+        [SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND]   = 0,
+        [SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND] = 0,
+        [SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND]   = 0,
+        [SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND]   = 1,
+        [SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND]    = 1,
+        [SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND]  = 1,
+        [SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND]    = -1,
+        [SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH]        = 0
+    };
+
+    uint32_t threshold = 0;
+    switch(metric_id) {
+    case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
+        threshold = RECORDER_TWEAK(drop_fps_detect);
+        break;
+    case SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND:
+        threshold = RECORDER_TWEAK(drop_bps_detect);
+        break;
+    case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
+        threshold = RECORDER_TWEAK(qlen_detect);
+        break;
+    default:
+        break;
+    }
+    if (threshold) {
+        if (metrics->average[metric_id] < threshold) {
+            metrics->weight[metric_id] = 0;
+        }
+    }
+
+    uint32_t fps_weight = RECORDER_TWEAK(fps_cur_weight);
+    uint32_t bps_weight = RECORDER_TWEAK(bps_cur_weight);
+    fps *= fps_weight;
+    bps *= bps_weight;
+
+    uint32_t fps_tgt = RECORDER_TWEAK(fps_tgt);
+    uint32_t fps_tgt_weight = RECORDER_TWEAK(fps_tgt_weight);
+    fps += fps_tgt * fps_tgt_weight;
+    fps_weight += fps_tgt_weight;
+
+    uint32_t bps_tgt = RECORDER_TWEAK(bps_tgt);
+    uint32_t bps_tgt_weight = RECORDER_TWEAK(bps_tgt_weight);
+    bps += bps_tgt * bps_tgt_weight;
+    bps_weight += bps_tgt_weight;
+
+    for (m = 1; m < SPICE_MSGC_METRIC_LAST; m++) {
+        uint32_t average = metrics->average[m];
+        uint32_t weight = metrics->weight[m];
+        metrics->weight[m] >>= 1;
+
+        int32_t fps_impact = metric_fps_impact[m];
+        if (fps_impact) {
+            if (fps_impact > 0) {
+                fps += weight * average;
+            }
+            if (fps_impact > 0 || average != 0) {
+                fps_weight += weight;
+            }
+        }
+
+        int32_t bps_impact = metric_bps_impact[m];
+        if (bps_impact) {
+            if (bps_impact > 0) {
+                bps += weight * average;
+            }
+            if (bps_impact > 0 || average != 0) {
+                bps_weight += weight;
+            }
+        }
+    }
+    fps = fps_weight ? fps / fps_weight : parms->frames_per_second;
+    bps = bps_weight ? bps / bps_weight : parms->average_bytes_per_second;
+
+    uint32_t fps_min = RECORDER_TWEAK(fps_min);
+    uint32_t fps_max = RECORDER_TWEAK(fps_max);
+    uint32_t bps_min = RECORDER_TWEAK(bps_min);
+    uint32_t bps_max = RECORDER_TWEAK(bps_max);
+    fps = fps < fps_min ? fps_min : fps > fps_max ? fps_max : fps;
+    bps = bps < bps_min ? bps_min : bps > bps_max ? bps_max : bps;
+
+    bool result = FALSE;
+    if (fps != parms->frames_per_second) {
+        record(smstr_fps,
+               "Adjusting FPS from %u to %u towards %u want %u (Following)",
+               parms->frames_per_second, fps, fps, fps_tgt);
+        parms->frames_per_second = fps;
+        result = TRUE;
+    }
+    if (bps != parms->average_bytes_per_second) {
+        record(smstr_bps,
+               "Adjusting BPS from %u to %u towards %u want %u (Following)",
+               parms->average_bytes_per_second, bps, bps, bps_tgt);
+        parms->average_bytes_per_second = bps;
+        result = TRUE;
+    }
+
+    return result;
+}
+
+RECORDER_TWEAK_DEFINE(fps_adjpct,       10, "  Percentage of rate adjustment for FPS");
+RECORDER_TWEAK_DEFINE(bps_adjpct,       10, "  Percentage of rate adjustment for BPS");
+
+// "Smarter" algorithm
+// This algorithm attempts to understand what is happening to deal with individual cases
+// In practice, it did not prove much more efficient than the simpler one
+static bool stream_smarts_think(uint32_t metric_id, uint32_t value, uint32_t average,
+                                StreamMetrics *metrics, StreamEncoderParameters *parms)
 {
     uint32_t tgt_fps = RECORDER_TWEAK(fps_tgt);
     uint32_t tgt_bps = RECORDER_TWEAK(bps_tgt);
@@ -507,12 +657,25 @@ static bool stream_smarts(uint32_t metric_id, uint32_t value, uint32_t average,
 
     case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
         // If the decoder queue length starts diverging, we may want to reduce FPS
+        ADJUST_FPS("Queue length is high", value > average, fps - 1);
         ADJUST_FPS("Queue length is diverging", value > average, fps - 1);
         break;
     }
 
     return FALSE;
 }
+
+static bool stream_smarts(uint32_t metric_id, uint32_t value, uint32_t average,
+                          StreamMetrics *metrics, StreamEncoderParameters *parms)
+{
+    unsigned algo = RECORDER_TWEAK(smstr_algo);
+    switch(algo) {
+    case 1: return stream_smarts_follow(metric_id, value, average, metrics, parms);
+    case 2: return stream_smarts_think(metric_id, value, average, metrics, parms);
+    }
+    return FALSE;
+}
+
 
 RECORDER_DEFINE(server_stream_metrics, 32, "Metrics received by server from client")
 RECORDER_TWEAK_DEFINE(metric_percent, 10, "Percentage of change caused by input metric");
@@ -566,6 +729,7 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     uint32_t value = metric->metric_value * metric->metric_duration / 1000;
     uint32_t average = metrics->average[metric_id];
     uint32_t percent = RECORDER_TWEAK(metric_percent);
+    uint32_t weight = 1;
 
     static char *metric_name[SPICE_MSGC_METRIC_LAST] = {
         [SPICE_MSGC_METRIC_INVALID]                     = "METRIC_INVALID",
@@ -588,38 +752,47 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
         record(metric_received_fps, "Received FPS=%u average %u (raw %u in %u ms)",
                value, average, metric->metric_value, metric->metric_duration);
+        weight = RECORDER_TWEAK(fps_rec_weight);
         break;
     case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
         record(metric_decoded_fps, "Decoded FPS=%u average %u (raw %u in %u ms)",
                value, average, metric->metric_value, metric->metric_duration);
+        weight = RECORDER_TWEAK(fps_dec_weight);
         break;
     case SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND:
         record(metric_displayed_fps, "Displayed FPS=%u average %u (raw %u in %u ms)",
                value, average, metric->metric_value, metric->metric_duration);
+        weight = RECORDER_TWEAK(fps_dsp_weight);
         break;
     case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
         record(metric_dropped_fps, "Dropped FPS=%u average %u (raw %u in %u ms)",
                value, average, metric->metric_value, metric->metric_duration);
+        weight = RECORDER_TWEAK(fps_drp_weight);
         break;
     case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
         record(metric_received_bps, "Received BPS=%u average %u (raw %u in %u ms)",
                value, average, metric->metric_value, metric->metric_duration);
+        weight = RECORDER_TWEAK(bps_rec_weight);
         break;
     case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
         record(metric_decoded_bps, "Decoded BPS=%u average %u (raw %u in %u ms)",
                value, average, metric->metric_value, metric->metric_duration);
+        weight = RECORDER_TWEAK(bps_dec_weight);
         break;
     case SPICE_MSGC_METRIC_BYTES_DISPLAYED_PER_SECOND:
         record(metric_displayed_bps, "Displayed BPS=%u average %u (raw %u in %u ms)",
                value, average, metric->metric_value, metric->metric_duration);
+        weight = RECORDER_TWEAK(bps_dsp_weight);
         break;
     case SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND:
         record(metric_dropped_bps, "Dropped BPS=%u average %u (raw %u in %u ms)",
                value, average, metric->metric_value, metric->metric_duration);
+        weight = RECORDER_TWEAK(bps_drp_weight);
         break;
     case SPICE_MSGC_METRIC_DECODER_QUEUE_LENGTH:
         record(metric_queue_length, "Client queue length=%u average %u (raw %u in %u ms)",
                value, average, metric->metric_value, metric->metric_duration);
+        weight = RECORDER_TWEAK(fps_qlen_weight);
         break;
     }
 
@@ -658,16 +831,15 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     }
 
     // Adjust the metric, smoothing over time using 'percent'
-    if (value >= min && value <= max) {
-        if (!metrics->weight[metric_id]) {
-            percent = 100;
-            metrics->weight[metric_id] = 1;
-        }
-        uint32_t previous = metrics->average[metric_id];
-        average = (percent * value + (100-percent) * previous) / 100;
-        metrics->average[metric_id] = average;
-        metrics->value[metric_id] = value;
+    value = value < min ? min : value > max ? max : value;
+    if (!metrics->weight[metric_id]) {
+        percent = 100;
     }
+    metrics->weight[metric_id] = weight;
+    uint32_t previous = metrics->average[metric_id];
+    average = (percent * value + (100-percent) * previous) / 100;
+    metrics->average[metric_id] = average;
+    metrics->value[metric_id] = value;
 
     // Now perform comparisons to try to detect bad scenarios
     if (stream_smarts(metric_id, value, average, metrics, &adjusted)) {
