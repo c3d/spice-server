@@ -686,7 +686,8 @@ RECORDER_TWEAK_DEFINE(dropped_fps_max, 120, "Maximum number of dropped frames pe
 RECORDER_TWEAK_DEFINE(queue_length_min, 0, "Minimum queue length considered by smart streaming");
 RECORDER_TWEAK_DEFINE(queue_length_max, 32000000, "Maximum queue length considered by smart streaming");
 
-RECORDER_TWEAK_DEFINE(smstr_clear, 0, "Clear all smart streaming stats for testing");
+RECORDER_TWEAK_DEFINE(smstr_clear,      0, "Clear all smart streaming stats for testing");
+RECORDER_TWEAK_DEFINE(smstr_refresh, 1000, "Max refresh rate in ms for update to streaming agent");
 
 RECORDER_DEFINE(metric_received_fps,    16, "Incoming metric for received frames per second")
 RECORDER_DEFINE(metric_decoded_fps,     16, "Incoming metric for decoded frames per second")
@@ -843,18 +844,25 @@ static bool handle_stream_metric(RedChannelClient *rcc,
 
     // Now perform comparisons to try to detect bad scenarios
     if (stream_smarts(metric_id, value, average, metrics, &adjusted)) {
+        static uint64_t last_update = 0;
+        uint64_t now = g_get_monotonic_time();
+        uint64_t refresh = RECORDER_TWEAK(smstr_refresh);
+        if (now - last_update > 1000 * refresh) {
+            last_update = now;
+
 #define SEND_ADJUSTMENT(parm, msg)                                      \
-        if (adjusted.parm != saved.parm) {                              \
-            channel->adjust_cb(channel->adjust_opaque,                  \
-                               msg, adjusted.parm, channel);            \
-        }
-        SEND_ADJUSTMENT(frames_per_second, STREAM_MSG_PARAMETER_FRAMES_PER_SECOND);
-        SEND_ADJUSTMENT(max_bytes_per_second, STREAM_MSG_PARAMETER_MAX_BYTES_PER_SECOND);
-        SEND_ADJUSTMENT(average_bytes_per_second, STREAM_MSG_PARAMETER_AVERAGE_BYTES_PER_SECOND);
-        SEND_ADJUSTMENT(gop_length, STREAM_MSG_PARAMETER_GROUP_OF_PICTURE_SIZE);
-        SEND_ADJUSTMENT(quality, STREAM_MSG_PARAMETER_QUALITY);
+            if (adjusted.parm != saved.parm) {                          \
+                channel->adjust_cb(channel->adjust_opaque,              \
+                                   msg, adjusted.parm, channel);        \
+            }
+            SEND_ADJUSTMENT(frames_per_second, STREAM_MSG_PARAMETER_FRAMES_PER_SECOND);
+            SEND_ADJUSTMENT(max_bytes_per_second, STREAM_MSG_PARAMETER_MAX_BYTES_PER_SECOND);
+            SEND_ADJUSTMENT(average_bytes_per_second, STREAM_MSG_PARAMETER_AVERAGE_BYTES_PER_SECOND);
+            SEND_ADJUSTMENT(gop_length, STREAM_MSG_PARAMETER_GROUP_OF_PICTURE_SIZE);
+            SEND_ADJUSTMENT(quality, STREAM_MSG_PARAMETER_QUALITY);
 #undef SEND_ADJUSTMENT
-        channel->encoder_parameters = adjusted;
+            channel->encoder_parameters = adjusted;
+        }
     }
 
     return TRUE;
