@@ -368,8 +368,8 @@ RECORDER_TWEAK_DEFINE(fps_tgt_weight,   20, "  Weight of target FPS");
 RECORDER_TWEAK_DEFINE(fps_rec_weight,   10, "  Weight of received FPS");
 RECORDER_TWEAK_DEFINE(fps_dec_weight,   10, "  Weight of decoded FPS");
 RECORDER_TWEAK_DEFINE(fps_dsp_weight,   30, "  Weight of display FPS");
-RECORDER_TWEAK_DEFINE(fps_drp_weight,   40, "  Weight of dropped FPS");
-RECORDER_TWEAK_DEFINE(fps_qlen_weight,  60, "  Weight of queue length on FPS");
+RECORDER_TWEAK_DEFINE(fps_drp_weight,  500, "  Weight of dropped FPS");
+RECORDER_TWEAK_DEFINE(fps_qlen_weight, 500, "  Weight of queue length on FPS");
 
 RECORDER_TWEAK_DEFINE(bps_tgt,      800000, "Ideal bytes per second for smart streaming");
 RECORDER_TWEAK_DEFINE(bps_min,       20000, "  Minimum number of BPS");
