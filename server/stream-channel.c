@@ -385,6 +385,8 @@ RECORDER_TWEAK_DEFINE(qlen_detect,     100, "Queue length detection threshold");
 RECORDER_TWEAK_DEFINE(drop_fps_detect,   5, "Dropped FPS detection threshold");
 RECORDER_TWEAK_DEFINE(drop_bps_detect,1000, "Dropped FPS threshold");
 
+RECORDER_TWEAK_DEFINE(metric_decay,     10, "Percentage of metric decay with each use");
+
 RECORDER_DEFINE(smstr_fps,              16, "Smart streaming frames per second")
 RECORDER_DEFINE(smstr_bps,              16, "Smart streaming average bytes per second")
 RECORDER_DEFINE(smstr_max_bps,          16, "Smart streaming max bytes per second")
@@ -462,7 +464,7 @@ static bool stream_smarts_follow(uint32_t metric_id, uint32_t value, uint32_t av
     bps += bps_tgt * bps_tgt_weight;
     bps_weight += bps_tgt_weight;
 
-    uint32_t metric_decay = 10;
+    uint32_t metric_decay = RECORDER_TWEAK(metric_decay);
     for (m = 1; m < SPICE_MSGC_METRIC_LAST; m++) {
         uint32_t average = metrics->average[m];
         uint32_t weight = metrics->weight[m];
