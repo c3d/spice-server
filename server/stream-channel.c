@@ -430,7 +430,7 @@ static bool stream_smarts_follow(uint32_t metric_id, uint32_t value, uint32_t av
     uint32_t threshold = 0;
     switch(metric_id) {
     case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
-        threshold = RECORDER_TWEAK(drop_fps_detect);
+        threshold = RECORDER_TWEAK(drop_fps_detect) * SPICE_FPS_METRIC_SCALING;
         break;
     case SPICE_MSGC_METRIC_BYTES_DROPPED_PER_SECOND:
         threshold = RECORDER_TWEAK(drop_bps_detect);
@@ -452,7 +452,7 @@ static bool stream_smarts_follow(uint32_t metric_id, uint32_t value, uint32_t av
     fps *= fps_weight;
     bps *= bps_weight;
 
-    uint32_t fps_tgt = RECORDER_TWEAK(fps_tgt);
+    uint32_t fps_tgt = RECORDER_TWEAK(fps_tgt) * SPICE_FPS_METRIC_SCALING;
     uint32_t fps_tgt_weight = RECORDER_TWEAK(fps_tgt_weight);
     fps += fps_tgt * fps_tgt_weight;
     fps_weight += fps_tgt_weight;
@@ -490,8 +490,8 @@ static bool stream_smarts_follow(uint32_t metric_id, uint32_t value, uint32_t av
     fps = fps_weight ? fps / fps_weight : parms->frames_per_second;
     bps = bps_weight ? bps / bps_weight : parms->average_bytes_per_second;
 
-    uint32_t fps_min = RECORDER_TWEAK(fps_min);
-    uint32_t fps_max = RECORDER_TWEAK(fps_max);
+    uint32_t fps_min = RECORDER_TWEAK(fps_min) * SPICE_FPS_METRIC_SCALING;
+    uint32_t fps_max = RECORDER_TWEAK(fps_max) * SPICE_FPS_METRIC_SCALING;
     uint32_t bps_min = RECORDER_TWEAK(bps_min);
     uint32_t bps_max = RECORDER_TWEAK(bps_max);
     fps = fps < fps_min ? fps_min : fps > fps_max ? fps_max : fps;
@@ -500,8 +500,11 @@ static bool stream_smarts_follow(uint32_t metric_id, uint32_t value, uint32_t av
     bool result = FALSE;
     if (fps != parms->frames_per_second) {
         record(smstr_fps,
-               "Adjusting FPS from %u to %u towards %u want %u (Following)",
-               parms->frames_per_second, fps, fps, fps_tgt);
+               "Adjusting FPS from %5.3f to %5.3f towards %5.3f want %5.3f (Following)",
+               parms->frames_per_second * SPICE_FPS_DISPLAY_SCALING,
+               fps * SPICE_FPS_DISPLAY_SCALING,
+               fps * SPICE_FPS_DISPLAY_SCALING,
+               fps_tgt * SPICE_FPS_DISPLAY_SCALING);
         parms->frames_per_second = fps;
         result = TRUE;
     }
@@ -525,7 +528,7 @@ RECORDER_TWEAK_DEFINE(bps_adjpct,       10, "  Percentage of rate adjustment for
 static bool stream_smarts_think(uint32_t metric_id, uint32_t value, uint32_t average,
                                 StreamMetrics *metrics, StreamEncoderParameters *parms)
 {
-    uint32_t tgt_fps = RECORDER_TWEAK(fps_tgt);
+    uint32_t tgt_fps = RECORDER_TWEAK(fps_tgt) * SPICE_FPS_METRIC_SCALING;
     uint32_t tgt_bps = RECORDER_TWEAK(bps_tgt);
     uint32_t *fps_ptr = &parms->frames_per_second;
     uint32_t *bps_ptr = &parms->average_bytes_per_second;
@@ -751,23 +754,31 @@ static bool handle_stream_metric(RedChannelClient *rcc,
 
     switch(metric_id) {
     case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
-        record(metric_received_fps, "Received FPS=%u average %u (raw %u in %u ms)",
-               value, average, metric->metric_value, metric->metric_duration);
+        record(metric_received_fps, "Received FPS=%5.3f average %5.3f (raw %u in %u ms)",
+               value * SPICE_FPS_DISPLAY_SCALING,
+               average * SPICE_FPS_DISPLAY_SCALING,
+               metric->metric_value, metric->metric_duration);
         weight = RECORDER_TWEAK(fps_rec_weight);
         break;
     case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
-        record(metric_decoded_fps, "Decoded FPS=%u average %u (raw %u in %u ms)",
-               value, average, metric->metric_value, metric->metric_duration);
+        record(metric_decoded_fps, "Decoded FPS=%5.3f average %5.3f (raw %u in %u ms)",
+               value * SPICE_FPS_DISPLAY_SCALING,
+               average * SPICE_FPS_DISPLAY_SCALING,
+               metric->metric_value, metric->metric_duration);
         weight = RECORDER_TWEAK(fps_dec_weight);
         break;
     case SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND:
-        record(metric_displayed_fps, "Displayed FPS=%u average %u (raw %u in %u ms)",
-               value, average, metric->metric_value, metric->metric_duration);
+        record(metric_displayed_fps, "Displayed FPS=%5.3f average %5.3f (raw %u in %u ms)",
+               value * SPICE_FPS_DISPLAY_SCALING,
+               average * SPICE_FPS_DISPLAY_SCALING,
+               metric->metric_value, metric->metric_duration);
         weight = RECORDER_TWEAK(fps_dsp_weight);
         break;
     case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
-        record(metric_dropped_fps, "Dropped FPS=%u average %u (raw %u in %u ms)",
-               value, average, metric->metric_value, metric->metric_duration);
+        record(metric_dropped_fps, "Dropped FPS=%5.3f average %5.3f (raw %u in %u ms)",
+               value * SPICE_FPS_DISPLAY_SCALING,
+               average * SPICE_FPS_DISPLAY_SCALING,
+               metric->metric_value, metric->metric_duration);
         weight = RECORDER_TWEAK(fps_drp_weight);
         break;
     case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
@@ -805,12 +816,12 @@ static bool handle_stream_metric(RedChannelClient *rcc,
     case SPICE_MSGC_METRIC_FRAMES_RECEIVED_PER_SECOND:
     case SPICE_MSGC_METRIC_FRAMES_DECODED_PER_SECOND:
     case SPICE_MSGC_METRIC_FRAMES_DISPLAYED_PER_SECOND:
-        min = RECORDER_TWEAK(fps_min);
-        max = RECORDER_TWEAK(fps_max);
+        min = RECORDER_TWEAK(fps_min) * SPICE_FPS_METRIC_SCALING;
+        max = RECORDER_TWEAK(fps_max) * SPICE_FPS_METRIC_SCALING;
         break;
     case SPICE_MSGC_METRIC_FRAMES_DROPPED_PER_SECOND:
-        min = RECORDER_TWEAK(dropped_fps_min);
-        max = RECORDER_TWEAK(dropped_fps_max);
+        min = RECORDER_TWEAK(dropped_fps_min) * SPICE_FPS_METRIC_SCALING;
+        max = RECORDER_TWEAK(dropped_fps_max) * SPICE_FPS_METRIC_SCALING;
         break;
     case SPICE_MSGC_METRIC_BYTES_RECEIVED_PER_SECOND:
     case SPICE_MSGC_METRIC_BYTES_DECODED_PER_SECOND:
